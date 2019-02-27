@@ -1,0 +1,57 @@
+---
+title: "Group Projects on Optimization Algorithms."
+date: "P8160 Advanced Statistical Computing "
+output: pdf_document #html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+require(survival)
+require(quantreg)
+require(glmnet)
+require(MASS)
+require(pROC)
+
+set.seed(2019)
+```
+
+
+# Breast Cancer Diagnosis
+
+
+The data \textit{breast-cancer.csv} have 569 row and 33 columns. The first column \textbf{ID} lables individual breast tissue images; The second column \textbf{Diagnonsis} indentifies if the image is coming from cancer tissue or benign cases (M=malignant, B = benign). There are 357  benign and 212  malignant cases. The other 30 columns correspond to mean, standard deviation and the largest values (points on the tails) of the distributions of the following 10 features computed for the cellnuclei;
+\begin{itemize}
+\item radius (mean of distances from center to points on the perimeter)
+\item texture (standard deviation of gray-scale values)
+\item perimeter
+\item area
+\item smoothness (local variation in radius lengths)
+\item compactness (perimeter\^ 2 / area - 1.0)
+\item concavity (severity of concave portions of the contour)
+\item concave points (number of concave portions of the contour)
+\item symmetry
+\item fractal dimension ("coastline approximation" - 1)
+\end{itemize}
+
+
+The goal of the exerise is to build a predictive model based on logistic regression to facilicate cancer diagnosis; 
+
+\textbf{Your to-do-list is}
+
+\begin{enumerate}
+\item Build a logistic model to classify the images into  malignant/benign, and write down your likelihood function, its gradient and Hessian matrix.  
+
+\item Develop a Newton-Raphson algoirthm to estimate your model; 
+
+\item Build a logistic-LASSO model to select features, and impletement the pathwise coordinatewise optimization algorithm to obtain a path of solutions with a sequence of descending $\lambda$'s. 
+
+\item Use 5-fold cross-validation to select the best $\lambda$. Compare the prediction performance between the 'optimal' model and 'full' model  
+
+\item Write a report to summarize your findings.
+\end{enumerate}
+# Answer:  your answer starts here...
+```{r }
+
+```
+
