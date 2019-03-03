@@ -118,9 +118,9 @@ gradient <- function(dat, func, start, tol=1e-5, maxiter = 200){
   cur <- start 
   pp <- length(start)
   stuff <- func(dat, cur) 
-  res <- c(0, stuff$loglik,cur)
+  res <- c(0, stuff$loglik, cur)
   prevloglik <- -Inf # To make sure it iterates 
-  while (i <= maxiter && abs(stuff$loglik - prevloglik) > tol && stuff$loglik > -Inf) { 
+  while (i < maxiter && abs(stuff$loglik - prevloglik) > tol && stuff$loglik > -Inf) { 
     i <- i + 1 
     prevloglik <- stuff$loglik 
     prev <- cur 
@@ -128,9 +128,10 @@ gradient <- function(dat, func, start, tol=1e-5, maxiter = 200){
     stuff <- func(dat, cur) # log-lik, gradient, Hessian 
     res <- rbind(res, c(i, stuff$loglik, cur))} 
   
-  return(round(res[nrow(res),3:ncol(res)],2))
+  return(res)
 }
-ans2 <- gradient(dat, logisticstuff, rep(0,31), maxiter = 500)
+ans2 <- gradient(dat, logisticstuff, rep(3,31), maxiter = 500)
+# we choose start point at rep(3,31), but still it doesn't converge
 ```
 
 ```{r}
@@ -142,7 +143,7 @@ coordinate <- function(dat, start, tol=1e-10, maxiter = 200) {
   betavec <- start
   u <- dat$X %*% betavec
   expu <- exp(u) 
-  loglik <- t(u) %*% dat$y - t(log(1 + expu)) %*% dat$y 
+  loglik <- t(u) %*% dat$y - sum(t(log(1 + expu)))
   res <- c(0, loglik, betavec)
   prevloglik <- -Inf # To make sure it iterates 
   while (i < maxiter && abs(loglik - prevloglik) > tol && loglik > -Inf) { 
@@ -158,9 +159,10 @@ coordinate <- function(dat, start, tol=1e-10, maxiter = 200) {
     loglik <- t(u) %*% dat$y - t(log(1 + expu)) %*% dat$y 
     res <- rbind(res, c(i, loglik, betavec))}  
   
-  return(round(res[nrow(res),3:ncol(res)],2))
+  return(res)
 }
-ans3 <- coordinate(dat,rep(1,31))
+ans3 <- coordinate(dat, rep(1, 31), maxiter = 500)
+# start point at rep(1, 31) converges well
 ```
 
 
