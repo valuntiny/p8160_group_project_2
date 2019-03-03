@@ -39,14 +39,14 @@ The goal of the exerise is to build a predictive model based on logistic regress
 
 \begin{enumerate}
 \item Build a logistic model to classify the images into malignant/benign, and write down your likelihood function, its gradient and Hessian matrix.  
-Let $y$ be the vector $n$ response random variable, $X$ denote the $n\times p$ design matrix(let$X[i]$ denote the $i$th row) and $\beta$ denote the $p\times 1$ coefficient.
+Let $y$ be the vector $n$ response random variable, $X$ denote the $n\times p$ design matrix(let$X_{i}$ denote the $i$th row) and $\beta$ denote the $p\times 1$ coefficient.
 The likelihood of logistic regression is:
-$$L(X,y,\beta) = \prod_{i=1}^n \{(\frac{\exp(X[i]\beta)}{1+\exp(X[i]\beta)})^{y_i}(\frac{1}{\exp(X[i]\beta)})^{1-y_i}\}$$
+$$L(X,y,\beta) = \prod_{i=1}^n \{(\frac{\exp(X_{i}\beta)}{1+\exp(X_{i}\beta)})^{y_i}(\frac{1}{1+\exp(X_{i}\beta)})^{1-y_i}\}$$
 Maximizing the likelihood is equivalent to maximizing the log likelihood:
 $$
 \begin{aligned}
 f(\beta) 
-& = \sum_{i=1}^n \{y_i(X[i]\beta)-\log(1+\exp(X[i]\beta))\}\\
+& = \sum_{i=1}^n \{y_i(X_{i}\beta)-\log(1+\exp(X_{i}\beta))\}\\
 & = (X\beta)^T Y-\{\log(1+\exp(X\beta))\}^T Y
 \end{aligned}
 $$
