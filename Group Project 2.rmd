@@ -41,16 +41,17 @@ The goal of the exerise is to build a predictive model based on logistic regress
 \item Build a logistic model to classify the images into malignant/benign, and write down your likelihood function, its gradient and Hessian matrix.  
 Let $y$ be the vector $n$ response random variable, $X$ denote the $n\times p$ design matrix(let$X_{i}$ denote the $i$th row) and $\beta$ denote the $p\times 1$ coefficient.
 The likelihood of logistic regression is:
-$$L(X,y,\beta) = \prod_{i=1}^n \{(\frac{\exp(X_{i}\beta)}{1+\exp(X_{i}\beta)})^{y_i}(\frac{1}{1+\exp(X_{i}\beta)})^{1-y_i}\}$$
+$$L(\beta; X, y) = \prod_{i=1}^n \{(\frac{\exp(X_{i}\beta)}{1+\exp(X_{i}\beta)})^{y_i}(\frac{1}{1+\exp(X_{i}\beta)})^{1-y_i}\}$$
 Maximizing the likelihood is equivalent to maximizing the log likelihood:
 $$
 \begin{aligned}
 f(\beta) 
 & = \sum_{i=1}^n \{y_i(X_{i}\beta)-\log(1+\exp(X_{i}\beta))\}\\
-& = (X\beta)^T Y-\{\log(1+\exp(X\beta))\}^T Y
+& = <X\beta, Y> - \sum_{i=1}^n\log(1+\exp(X_{i}\beta))
 \end{aligned}
 $$
-Let $p$, a vector of $n$ denote $p=\frac{\exp(X\beta)}{1+\exp(X\beta)}$. The gradient of this function is:
+Let $p$, a vector of $n$ denote $p=\frac{\exp(X\beta)}{1+\exp(X\beta)}$. 
+The gradient of this function is:
 $$\nabla f(\beta) = X^T(y-p)$$
 The Hessian is given by:
 $$\nabla^2 f(\beta) = -X^T p(1-p)^TX$$
@@ -59,23 +60,18 @@ Hessian matrix is negative definite, well behaved.
 
 ```{r}
 ###### data manipulation
-setwd("/Users/yujingyao/Desktop/")
+# setwd("/Users/yujingyao/Desktop/")
 mydata <- read.csv("breast-cancer-1.csv") 
-summary(mydata)
-head(mydata)
-dim(mydata)
 n <- dim(mydata)[1]
 p <- dim(mydata)[2]
-list <- rep(3:(p-1))
-data <- do.call(cbind,lapply(list, function(x)(mydata[,x]-mean(mydata[,x]))/sd(mydata[,x])))
-X <- data.frame(data)%>%
-  mutate(.,intercept = 1) 
-y <- as.vector(ifelse(mydata[,2]=="M",1,0))
-dat <- list(y=y,X=as.matrix(X))
-# newdat <- cbind.data.frame(y,X)
-# logfit <- glm(y~., family = binomial(link = "logit"),
-#           data = newdat)
-# summary(logfit)
+list <- c(3:(p - 1))
+data <- do.call(cbind, lapply(list, function(x) (mydata[,x] - mean(mydata[,x]))/sd(mydata[,x]))) # standardize
+X <- data.frame(data)
+y <- as.vector(ifelse(mydata[,2] == "M", 1, 0))
+newdat <- cbind.data.frame(y,X)
+logfit <- glm(y~., family = binomial(link = "logit"),
+          data = newdat)
+summary(logfit)
 # didn't converge
 ```
 
@@ -83,33 +79,38 @@ dat <- list(y=y,X=as.matrix(X))
 
 ```{r}
 ##### 1. classical newton raphson
+dat <- list(y = y, X = as.matrix(X))
 logisticstuff <- function(dat, betavec){ 
-  u <- dat$X%*%betavec
+  u <- dat$X %*% betavec
   expu <- exp(u) 
-  loglik <- t(u)%*%dat$y-t(log(1+expu))%*%dat$y # Log-likelihood at betavec
-  prob <- expu / (1 + expu) # P(Y_i=1|x_i)
-  grad <-  t(dat$X)%*%(dat$y-prob)
-  Hess <- -t(dat$X)%*%prob%*%t(1-prob)%*%dat$X # Hessian at betavec
-return(list(loglik = loglik, grad = grad, Hess = Hess))}
+  loglik <- t(u) %*% dat$y - sum(t(log(1 + expu))) # Log-likelihood at betavec
+  prob <- expu / (1 + expu) # P(Y_i=1|x_i), the p vector we mentioned before
+  grad <- t(dat$X) %*% (dat$y - prob)
+  Hess <- -t(dat$X) %*% prob %*% t(1 - prob) %*% dat$X # Hessian at betavec
+  return(list(loglik = loglik, grad = grad, Hess = Hess))}
 
-NewtonRaphson <- function(dat, func, start, tol=1e-10,maxiter = 200){ 
+NewtonRaphson <- function(dat, func, start, tol=1e-10, maxiter = 200){ 
   i <- 0 
   cur <- start 
   stuff <- func(dat, cur) 
-  res <- c(0, stuff$loglik,cur)
+  res <- c(0, stuff$loglik, cur)
   prevloglik <- -Inf # To make sure it iterates 
-  while(i < maxiter && abs(stuff$loglik - prevloglik) > tol && stuff$loglik > -Inf) 
-    { i <- i + 1 
+  
+  while (i < maxiter && abs(stuff$loglik - prevloglik) > tol && stuff$loglik > -Inf) {
+    i <- i + 1 
     prevloglik <- stuff$loglik 
-    prev <- cur 
-    cur <- prev - solve(stuff$Hess) %*% stuff$grad 
+    prev <- cur # theta i
+    cur <- prev - solve(stuff$Hess) %*% stuff$grad  # theta i+1
     stuff <- func(dat, cur) # log-lik, gradient, Hessian 
     res <- rbind(res, c(i, stuff$loglik, cur))}  
-  return(round(res[nrow(res),3:ncol(res)],2))
+  
+  return(round(res[nrow(res),3:ncol(res)], 2))
 }
-ans1 <- NewtonRaphson(dat,logisticstuff,rep(1,31),maxiter = 500)
+ans1 <- NewtonRaphson(dat,logisticstuff, rep(1, 30), maxiter = 500)
 # Error in solve.default(stuff$Hess) : singular
+```
 
+```{r}
 ##### 2. gradient descent
 gradient <- function(dat, func, start, tol=1e-5,maxiter = 200){ 
   i <- 0 
