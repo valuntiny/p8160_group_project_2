@@ -66,7 +66,8 @@ n <- dim(mydata)[1]
 p <- dim(mydata)[2]
 list <- c(3:(p - 1))
 data <- do.call(cbind, lapply(list, function(x) (mydata[,x] - mean(mydata[,x]))/sd(mydata[,x]))) # standardize
-X <- data.frame(data)
+X <- data.frame(data) %>% 
+  mutate(., intercept = 1)
 y <- as.vector(ifelse(mydata[,2] == "M", 1, 0))
 newdat <- cbind.data.frame(y,X)
 logfit <- glm(y~., family = binomial(link = "logit"),
@@ -106,53 +107,57 @@ NewtonRaphson <- function(dat, func, start, tol=1e-10, maxiter = 200){
   
   return(round(res[nrow(res),3:ncol(res)], 2))
 }
-ans1 <- NewtonRaphson(dat,logisticstuff, rep(1, 30), maxiter = 500)
+# ans1 <- NewtonRaphson(dat,logisticstuff, rep(1, 31), maxiter = 500)
 # Error in solve.default(stuff$Hess) : singular
 ```
 
 ```{r}
 ##### 2. gradient descent
-gradient <- function(dat, func, start, tol=1e-5,maxiter = 200){ 
+gradient <- function(dat, func, start, tol=1e-5, maxiter = 200){ 
   i <- 0 
   cur <- start 
   pp <- length(start)
   stuff <- func(dat, cur) 
   res <- c(0, stuff$loglik,cur)
   prevloglik <- -Inf # To make sure it iterates 
-  while(i <= maxiter && abs(stuff$loglik - prevloglik) > tol && stuff$loglik > -Inf) 
-    { i <- i + 1 
+  while (i <= maxiter && abs(stuff$loglik - prevloglik) > tol && stuff$loglik > -Inf) { 
+    i <- i + 1 
     prevloglik <- stuff$loglik 
     prev <- cur 
-    cur <- prev + (diag(pp)/10)%*% (stuff$grad) 
+    cur <- prev + (diag(pp)/10) %*% (stuff$grad) # smaller step
     stuff <- func(dat, cur) # log-lik, gradient, Hessian 
-    res <- rbind(res, c(i, stuff$loglik, cur))}  
+    res <- rbind(res, c(i, stuff$loglik, cur))} 
+  
   return(round(res[nrow(res),3:ncol(res)],2))
 }
-ans2 <- gradient(dat,logisticstuff,rep(0,31),maxiter = 500)
+ans2 <- gradient(dat, logisticstuff, rep(0,31), maxiter = 500)
+```
 
+```{r}
 ##### 3. coordinate-wise decent update
-coordinate <- function(dat, start, tol=1e-10,maxiter = 200){ 
+coordinate <- function(dat, start, tol=1e-10, maxiter = 200) { 
   i <- 0 
   pp <- length(start)
   n <- length(dat$y)
-  betavec <- start 
-  u <- dat$X%*%betavec
+  betavec <- start
+  u <- dat$X %*% betavec
   expu <- exp(u) 
-  loglik <- t(u)%*%dat$y-t(log(1+expu))%*%dat$y 
+  loglik <- t(u) %*% dat$y - t(log(1 + expu)) %*% dat$y 
   res <- c(0, loglik, betavec)
   prevloglik <- -Inf # To make sure it iterates 
-  while(i < maxiter && abs(loglik - prevloglik) > tol && loglik > -Inf) 
-    { i <- i + 1 
+  while (i < maxiter && abs(loglik - prevloglik) > tol && loglik > -Inf) { 
+    i <- i + 1 
     prevloglik <- loglik
     prev <- betavec
-    for (j in 1:pp){
-      ynoj <- dat$X[,-j]%*%betavec[-j]
-      betavec[j] <- 1/n*(t(dat$X[,j])%*%(dat$y-ynoj))
+    for (j in 1:pp) {
+      ynoj <- dat$X[,-j] %*% betavec[-j]
+      betavec[j] <- 1/n * (t(dat$X[,j]) %*% (dat$y - ynoj))
     }
-    u <- dat$X%*%betavec
+    u <- dat$X %*% betavec
     expu <- exp(u) 
-    loglik <- t(u)%*%dat$y-t(log(1+expu))%*%dat$y 
+    loglik <- t(u) %*% dat$y - t(log(1 + expu)) %*% dat$y 
     res <- rbind(res, c(i, loglik, betavec))}  
+  
   return(round(res[nrow(res),3:ncol(res)],2))
 }
 ans3 <- coordinate(dat,rep(1,31))
