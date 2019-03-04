@@ -8,6 +8,7 @@ output: pdf_document #html_document
 knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(Hmisc)
+library(ggcorrplot) # for correlation heatmap
 set.seed(99999)
 ```
 
@@ -74,6 +75,40 @@ logfit <- glm(y~., family = binomial(link = "logit"),
           data = newdat)
 summary(logfit)
 # didn't converge
+```
+
+```{r}
+### check collinearity
+mydata %>% 
+  select(-id, -diagnosis, -X) %>% 
+  select(starts_with("radius"), starts_with("texture"), starts_with("perimeter"), starts_with("area"), starts_with("smooth"), starts_with("compact"), starts_with("concavity"), starts_with("concave"), starts_with("symmetry"), starts_with("fractal")) %>% 
+  select(-starts_with("area"), -starts_with("perimeter")) %>% 
+  cor() %>% 
+  ggcorrplot()
+
+mydata <- read.csv("breast-cancer-1.csv") %>% 
+  select(-id, -diagnosis, -X) %>% 
+  select(starts_with("radius"), starts_with("texture"), starts_with("perimeter"), starts_with("area"), starts_with("smooth"), starts_with("compact"), starts_with("concavity"), starts_with("concave"), starts_with("symmetry"), starts_with("fractal"))
+  
+  ggcorrplot()
+  
+mydata = mydata %>% 
+  select(-id, -diagnosis, -X) %>% 
+  select(-starts_with("area"), -starts_with("perimeter"))
+
+mydata %>% 
+  cor() %>% 
+  ggcorrplot()
+
+n <- dim(mydata)[1]
+p <- dim(mydata)[2]
+list <- c(3:(p - 1))
+data <- do.call(cbind, lapply(list, function(x) (mydata[,x] - mean(mydata[,x]))/sd(mydata[,x]))) # standardize
+X <- data.frame(data) %>% 
+  mutate(., intercept = 1)
+y <- as.vector(ifelse(mydata[,2] == "M", 1, 0))
+newdat <- cbind.data.frame(y,X)
+logfit <- glm(y~., family = binomial(link = "logit"), data = newdat)
 ```
 
 \item Develop a Newton-Raphson algoirthm to estimate your model; 
