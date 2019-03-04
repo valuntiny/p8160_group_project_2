@@ -1,0 +1,113 @@
+---
+title: "A study of optimization algorithms on a breast cancer diagnosis dataset"
+author: "Xinlei Chen, Guojing Wu and Yujing Yao"
+abstract: "This report discusses a study of optimization algorithms on breast cancer diagnosis dataset. Our goal is to build a predictive model based on logistic regression to facilicate cancer diagnosis, and we compared estimation method including "
+thanks:
+keywords: "Newton "
+date: "March 14, 2019"
+output:
+    pdf_document:
+    highlight: default
+    number_sections: true
+    citation_package:
+    keep_tex: false
+    fig_caption: true
+    latex_engine: pdflatex
+fontsize: 10pt
+geometry: margin=1in
+bibliography:
+biblio-style:
+header-includes:
+- \usepackage{indentfirst}
+- \usepackage{graphicx}
+- \usepackage{geometry}
+- \usepackage{subfigure}
+- \usepackage{amsmath}
+- \usepackage{listings}
+- \usepackage{tikz}
+- \usetikzlibrary{matrix}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE, comment = "")
+require(dplyr) # dataset manipulation
+require(plyr) # apply function
+require(knitr) # table
+require(kableExtra) # table
+require(ggplot2) # for plot
+require(ggpubr) # common legend
+options(knitr.table.format = "latex")
+```
+
+## Background
+
+1. Dataset descriptive
+2. check multicolinearity -one plot
+3. report final input of model - descripive mean(sd)
+
+
+## Method
+
+### Logistic Regression
+problem 1
+
+### Newton Raphson
+problem2 
+
+### Lasso
+problem 3&4 
+
+## Results
+
+### Cross validation for lasso
+one plot for beta
+one plot for lambda
+
+### Model comparison
+comparison table 
+
+\begin{table}[ht]
+\caption{Data generation function for the exponential, Weibull, and Gompertz distributions.}
+\begin{center}
+\begin{tabular}{|l|c|c|c|}
+\hline
+Characteristic & exponential distribution & Weibull distribution &Gompertz distribution \\[1mm]\hline
+Parameter & Scale parameter & Scale parameter $\lambda >0$& Scale parameter $\lambda >0$\\
+ & $\lambda >0$ & Shape parameter $\gamma >0$& Shape parameter $\alpha \in R$\\[2mm]
+Hazard function& $h_0(t) = \lambda$ & $h_0(t) = \lambda\gamma t^{\gamma-1}$ & $h_0(t) = \lambda e^{\alpha t}$\\[2mm]
+Cum. hazard function & $H_0(t) = \lambda t$ & $H_0(t) = \lambda t^\gamma$ & $H_0(t) = \frac{\lambda}{\alpha}(e^{\alpha t} - 1)$
+\\[2mm]
+Survival time $u \sim U (0,1)$ & 
+$T  = \frac{-logu}{\lambda \exp(\beta x)}$ & 
+$T = (\frac{-logu}{\lambda \exp(\beta x)})^\frac{1}{\gamma}$ & 
+$T = \frac{1}{\alpha} log(1 - \frac{\alpha logu}{\lambda \exp(\beta x)})$
+\\[1mm]\hline
+\end{tabular}
+\end{center}
+\label{default}
+\end{table}
+
+
+**Figure 1: Trajectory plot of estimation criteria($\beta=1.5$, $\lambda = 0.1$, $\alpha=5$, $\nu=5$, non censored).**
+
+**Figure 2: Trajectory plot of estimation criteria($n=300$, $\lambda = 0.1$, $\alpha=5$, $\nu=5$, non censored).**
+
+
+
+## Conclusions
+
+
+## References
+\begin{enumerate}
+\item[1] Bender, Ralf, Thomas Augustin, and Maria Blettner. "Generating survival times to simulate Cox proportional hazards models." Statistics in medicine 24.11 (2005): 1713-1723.
+\item[2] Austin, Peter C. "Generating survival times to simulate Cox proportional hazards models with time‐varying covariates." Statistics in medicine 31.29 (2012): 3946-3958.
+\item[3] Morina, David, and Albert Navarro. "The R package survsim for the simulation of simple and complex survival data." Journal of Statistical Software 59.2 (2014): 1-20.
+\end{enumerate}
+
+## Appendix A
+
+
+
+## Appendix B
+```{r, ref.label=knitr::all_labels(),echo=TRUE,eval=FALSE}
+```
