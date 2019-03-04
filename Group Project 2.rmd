@@ -124,14 +124,14 @@ gradient <- function(dat, func, start, tol=1e-5, maxiter = 200){
     i <- i + 1 
     prevloglik <- stuff$loglik 
     prev <- cur 
-    cur <- prev + (diag(pp)/10) %*% (stuff$grad) # smaller step
+    cur <- prev + (diag(pp)/20) %*% (stuff$grad) # smaller step
     stuff <- func(dat, cur) # log-lik, gradient, Hessian 
     res <- rbind(res, c(i, stuff$loglik, cur))} 
   
   return(res)
 }
-ans2 <- gradient(dat, logisticstuff, rep(3,31), maxiter = 500)
-# we choose start point at rep(3,31), but still it doesn't converge
+ans2 <- gradient(dat, logisticstuff, rep(3,31), maxiter = 200)
+# we choose start point at rep(3,31), and step = diag(pp)/30, but still it doesn't converge
 ```
 
 ```{r}
@@ -161,40 +161,57 @@ coordinate <- function(dat, start, tol=1e-10, maxiter = 200) {
   
   return(res)
 }
-ans3 <- coordinate(dat, rep(1, 31), maxiter = 500)
+ans3 <- coordinate(dat, rep(1, 31), maxiter = 1000)
 # start point at rep(1, 31) converges well
 ```
 
-
 \item Build a logistic-LASSO model to select features, and impletement the pathwise coordinatewise optimization algorithm to obtain a path of solutions with a sequence of descending $\lambda$'s. 
+
 ```{r}
-##### 4.coordinate-wise decent update with lasso
-sfun <- function(beta,lambda) sign(beta)*max((beta-lambda),0)
-coordinatelasso <- function(lambda,dat, start, tol=1e-10,maxiter = 200){ 
+##### 4. coordinate-wise logistic lasso
+sfun <- function(beta,lambda) sign(beta) * max((abs(beta) - lambda), 0)
+coordinatelasso <- function(lambda, dat, start, tol=1e-10, maxiter = 200) {
   i <- 0 
   pp <- length(start)
   n <- length(dat$y)
   betavec <- start 
-  u <- (dat$X)%*%betavec
+  u <- (dat$X) %*% betavec
   expu <- exp(u) 
-  loglik <- t(u)%*%dat$y-t(log(1+expu))%*%dat$y + sum(lambda*abs(betavec))
+  loglik <- t(u) %*% dat$y - sum(t(log(1 + expu))) + sum(lambda * abs(betavec))
   res <- c(0, loglik, betavec)
   prevloglik <- -Inf # To make sure it iterates 
-  while(i < maxiter && abs(loglik - prevloglik) > tol && loglik > -Inf) 
-    { i <- i + 1 
+  while(i < maxiter && abs(loglik - prevloglik) > tol && loglik > -Inf) {
+    i <- i + 1 
     prevloglik <- loglik
     prev <- betavec
     for (j in 1:pp){
-      ynoj <- dat$X[,-j]%*%betavec[-j]
-      betavec[j] <- sfun(1/n*(t(dat$X[,j])%*%(dat$y-ynoj)),lambda)
+      ynoj <- dat$X[,-j] %*% betavec[-j]
+      betavec[j] <- sfun(1 / n * (t(dat$X[,j]) %*% (dat$y - ynoj)), lambda)
     }
-    u <- dat$X%*%betavec
+    u <- dat$X %*% betavec
     expu <- exp(u) 
-    loglik <- t(u)%*%dat$y-t(log(1+expu))%*%dat$y + sum(lambda*abs(betavec))
+    loglik <- t(u) %*% dat$y - sum(t(log(1 + expu))) + sum(lambda * abs(betavec))
     res <- rbind(res, c(i, loglik, betavec))}  
-  return(round(res[nrow(res),3:ncol(res)],2))
+  
+  return(res[nrow(res), 3:ncol(res)])
 }
-ans4 <- coordinatelasso(lambda =1e-2, dat,rep(1,31))
+ans4 <- coordinatelasso(lambda = 1e-2, dat,rep(1,31))
+```
+
+```{r}
+##### 4.1 coordinate-wise descent update with lasso
+lambda.seq = seq(to = 0.5, from = 1e-2, length.out = 100)
+res = c()
+for (i in lambda.seq) {
+  res = rbind(res, coordinatelasso(lambda = i, dat,rep(1,31)))
+}
+
+res %>% 
+  as.tibble() %>% 
+  mutate(lambda = lambda.seq) %>% 
+  gather(key = para, value = estimate, V1:V31) %>% 
+  ggplot(aes(x = lambda, y = estimate, group = para, col = para)) +
+  geom_line()
 ```
 
 \item Use 5-fold cross-validation to select the best $\lambda$. Compare the prediction performance between the 'optimal' model and 'full' model  
