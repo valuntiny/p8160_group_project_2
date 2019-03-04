@@ -220,19 +220,19 @@ res %>%
 set.seed (99999)
 K <- 5
 folds <- sample(1:K, n, replace=TRUE)
-grid <- 10^seq(-2, 0, length=100)
+grid <- seq(1e-2, 0.5, length=100)
 list <- seq(1:100)
 cvresult <- do.call(cbind,lapply(list,function(x){
   cv.errors <- vector()
   for (i in 1:K){
-  loglasbeta <- coordinatelasso(grid[x], 
-                                list(X=as.matrix(X[folds!=i,]),y=y[folds!=i]),
-                                start= rep(1,31),tol=1e-1,maxiter = 20)
-  u <- as.matrix(X[folds==i,])%*%loglasbeta
-  expu <- exp(u) 
-  prob <- expu / (1 + expu) 
-  pred <- ifelse(prob >=0.5,1,0)
-  cv.errors[i] = mean((as.vector(y[folds==i])-as.vector(pred))^2) 
+    loglasbeta <- coordinatelasso(grid[x], 
+                                  list(X=as.matrix(X[folds!=i,]),y=y[folds!=i]),
+                                  start= rep(1,31),tol=1e-1,maxiter = 20)
+    u <- as.matrix(X[folds==i,])%*%loglasbeta
+    expu <- exp(u) 
+    prob <- expu / (1 + expu) 
+    pred <- ifelse(prob >=0.5,1,0)
+    cv.errors[i] = mean((as.vector(y[folds==i])-as.vector(pred))^2)  # MSE
   }
   cv.errors.mean <- mean(cv.errors)
   cv.errors.se <- sqrt(var(cv.errors)/K)
@@ -251,6 +251,7 @@ plot(result$grid, result$cv.error, type="n", xlab="Lambda",cex.lab=1,xaxt="n",ce
 lines(result$grid, result$cv.error ,pch=16, col=4,lwd=1.5, type="b", cex=1)
 # with(data = result, expr = errbar(grid, cv.error, cv.error+cv.se, cv.error-cv.se, add=T, pch=1, cap=.015, log="x"))
 abline(v=best.lambda,col=3,lty=3)
+text(0.3, 0.8, labels = paste("best lambda = ", round(best.lambda, 3), sep = ""))
 axis(side=1,at=c(0.2, 0.4, 0.6, 0.8, 1.0),labels=c("0.2", "0.4", "0.6","0.8",'1'), cex.axis=1)
 ```
 
