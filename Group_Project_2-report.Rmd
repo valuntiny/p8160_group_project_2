@@ -1,7 +1,7 @@
 ---
-title: "A study of optimization algorithms on breast cancer diagnosis dataset"
+title: "A study of optimization algorithms on a breast cancer diagnosis dataset"
 author: "Xinlei Chen, Guojing Wu and Yujing Yao"
-abstract: "This report discusses a simulation study to compare three proportional hazards models. We generated survival time and censored survival time from the Exponential, the Weibull and the Gompertz distribution , and we applied Exponential proportional-hazards model, Weibull proportional hazards model and Cox proportional hazards model to get the estimates for the hazard ratio for each generated dataset. Results of the simulation study are shown in the report and we conclude that semi parametric Cox model can help avoid the issue of misspecifying the baseline hazard function."
+abstract: "This report discusses a study of optimization algorithms on breast cancer diagnosis dataset. Our goal is to build a predictive model based on logistic regression to facilicate cancer diagnosis, and we compared estimation method including "
 thanks:
 keywords: "Newton "
 date: "March 14, 2019"
@@ -32,76 +32,39 @@ header-includes:
 knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE, comment = "")
 require(dplyr) # dataset manipulation
 require(plyr) # apply function
-require(survival) # survreg function
 require(knitr) # table
 require(kableExtra) # table
-require(flexsurv) # survreg ci
 require(ggplot2) # for plot
 require(ggpubr) # common legend
-require(varhandle) #for unfactor
 options(knitr.table.format = "latex")
 ```
 
 ## Background
 
-### Objective
-In this project, we aimed to design a simulation study to compare three survival models. We evaluated the impacts of misspecifying the baseline hazard function on the estimate of the treatment effect and investigated the impact of fitting too complicated a model when an exponential distribution is sufficient. 
+1. Dataset descriptive
+2. check multicolinearity -one plot
+3. report final input of model - descripive mean(sd)
 
 
-### Statistical method
+## Method
 
-Suppose $T\in[0, \infty)$ is the time to a event of interest, such as death, disease onset, device failure, etc. To analyze such data, we define a survival function $S$ as
-$S(t) = \operatorname{Pr}(T > t)$ and it measures the probablity of "survive" beyond time $t$: if $T$ is the time to death, $S(t)$ is the probablity of living longer than $t$.  
+### Logistic Regression
+problem 1
 
-A closely-related concept, hazard function $h$, is defined as
-$$h(t) = \lim_{\Delta t \rightarrow 0}\frac{\operatorname{Pr}(T \in (t, t + \Delta t) \vert T > t)}{\Delta t} = \frac{f(t)}{S(t)}.$$
-where $f(t)$ is the density function of $T$. The hazard function measures the instantaneous risk of failure at time $t$ giving that a patient has survived until time $t$. 
+### Newton Raphson
+problem2 
 
-Proportional hazards model is one of the primary approaches to investigate the efficacy of a treatment ($X$)  on a survival time $T$. Under the proportional hazards model, efficacy of the treatment effect is estimated as the log hazard ratio which represents relative hazard reduction due to the treatment in comparison to the control. This effect could be translated from the hazards to the survival time until the occurrence of an event of interest.  
-It assumes that the hazard ratio for the $i$-th patient  at  a time $t$ is
-$$h(t) = h_{0}(t) exp(\beta^T x)$$
-where $h_0(t)$ is the baseline hazard function, $x_i$ is a binary treatment indicator variable coded 0 for control and 1 for the treatment, $\beta$ is the parameter of interest, which is the log hazard ratio for the treatment effect and $\beta$ measures the relative hazard reduction due to treatment in comparison to the control.
+### Lasso
+problem 3&4 
 
-To estimate the distribution of survival times, the following statistical methods were used:
-\begin{itemize}
-\item Statistical method 1: \textbf{Exponential proportional hazards model}
+## Results
 
-This model assumes the baseline hazard function is constant for all t.   
-$$h(t) = \lambda exp(\beta^T x)$$
+### Cross validation for lasso
+one plot for beta
+one plot for lambda
 
-\item Statistical method 2: \textbf{Weibull proportional hazards model}
-
-This model assumes the baseline hazard function follows Weibull distribution.    
-$$ h(t) = \lambda\gamma t^{\gamma-1} exp(\beta^T x)$$
-
-\item Statistical method 3: \textbf{Cox proportional hazards model}
-
-This model assumes the baseline hazard is unspecified. 
-\end{itemize}
-
-
-## Simulation
-In this simulation study, we planned to generate survival time from known distributions. Then for each generated dataset, we would apply Exponential proportional hazards model, Weibull proportional hazards model and Cox proportional hazards model to get the estimates for the hazard ratio and compare the reselts. 
-
-### Scenario
-We generated survival time data from known baseline hazard function including exponential distribution and Weibull distribution, which are commonly used parametric models in survival analysis. Once the hazard ratio or treatment effect is given, we could produce the survival time for the treatment group. It is expected that their corresponding proportional hazards model is the best fit. For a complete comparison among three models, a third distribution is required. We used Gompertz distribution, which is an important distribution in modeling of human mortality and it also has the proportional hazards property. In addition to the ideal no censoring situation, we also generated data with the same parametric setting under random right censoring. Therefore, we will apply the target models on the data generated from the below six scenarios. 
-
-\begin{itemize}
-\item Scenario 1 and scenario 4: \textbf{Exponential distribution}
-
-Data is generated from an underlying constant baseline hazard function $h_0(t) = \lambda$ with no censoring and random right censoring
-\item Scenario 2 and scenario 5: \textbf{Weibull distribution}
-
-Data is generated from an underlying Weibull distributed baseline hazard function where $h_0(t) = \lambda\gamma t^{\gamma-1}$ for $\gamma>0$ with no censoring and random right censoring. 
-\item Scenario 3 and scenario 6: \textbf{Gompertz distribution}
-
-Data is generated from an underlying Gompertz distributed baseline hazard function where $h_0(t) = \lambda e^{\alpha t}$ with no censoring and random right censoring. .
-\end{itemize}
-
-### Data generation method
-We used inverse transformation methods to generate survival times data for the three target distributions. First we generated the binary treatment indicator variable X, which follows a Bernoulli distribution. For both the control group data and treatment group data, whose hazard function can be represented as $h_0(t)exp(\beta x)$ where $x=0$ is control and $x=1$ is treatment, we can get the inversed cumulative function through the relationship between functions. The parameters required for each distribution, the hazard function, the cumulative hazard function, and the formula for simulating survival times from each distribution in the setting of group indicator covariate are described in Table I (see apprendix for further derivation details).
-
-To generate censored survival time, we generated the random parametric censoring time which is indepedently from $T$. Then we got the observed survival time and status by its definition $Y=\min (T, C)$ where $T$ represents true survival time and $C$ represents the censoring time and $\delta= I(T<=C)$. 
+### Model comparison
+comparison table 
 
 \begin{table}[ht]
 \caption{Data generation function for the exponential, Weibull, and Gompertz distributions.}
@@ -125,47 +88,14 @@ $T = \frac{1}{\alpha} log(1 - \frac{\alpha logu}{\lambda \exp(\beta x)})$
 \end{table}
 
 
-
-### Performance measure
-To compare the estimation performance based on Exponential proportional-hazards model, Weibull proportional hazards model and Cox proportional hazards model, we used bias and mean-squared as measures. Their definitions and estimates based on Monte Carlo simulation with $K$ replicates are shown as below.
-\[
-\makebox[\linewidth]{$ \text{Bias} = \text{E}(\hat{\beta} - \beta_0) = \frac{1}{K}\sum_{j=1}^K(\hat{\beta}_{(j)} - \beta_0)$}
-\]
-\[
-\makebox[\linewidth]{$\text{MSE} = \text{E}(\hat{\beta} - \beta_0)^2 = \frac{1}{K}\sum_{j=1}^K(\hat{\beta}_{(j)} - \beta_0)^2$}
-\]
-
-## Results
-
-Based on the 1000 replicates of the Monte Carlo simulation, we calculate the performance measures for Exponential proportional-hazards model, Weibull proportional hazards model and Cox proportional hazards model under each scenarios with fixed parameters as shown in Table 2. 
-
-
-Without censoring, when the underlying distribution is exponential, we could observe that the Exponential proportional hazards model is an outstanding performer. This is the same when Weibull proportional hazards model combined with Weibull distribution. The result of the Cox model is also impressive compared to the first two models. We can see that the impact of fitting a complicated a model when an exponential is sufficient is not too excessive. However, we noted that the model performance can be very poor when the baseline hazard function is misspecified. For example, when we applied the Exponential proportional hazards model to the Weibull and Gompertz data, the bias and MSE of the estimate of the treatment effect is relatively much larger than the other two models. When the underlying distribution is Gompertz, neither exponential nor Weibull, Cox model is the best one based on both bias and MSE. The semi-parametric Cox model can help the avoid this issue of misspecification. Additionally, from the table we can see that the results of estimation of hazard ratio with censorship is similar to the result without censorship. However, the estimation of survival curves is impacted by the censorship as shown in Figure 3.
-
-We found out that the parameters, like sample size and treatment effects do have some effects on the MSE and plots. So we plot the trajectory of MSE and bias versus different sample size and treatment effects as shown in Figure 1 and Figure 2. We can see from Figure 1 that for the data generated from Exponential distribution, three models have similar MSE and bias as the sample size increases. For the data generated from Weibull distribution, Weibull proportional hazards model and Cox model have similar performance while the Exponential proportional hazards model has a significant poor performance. Lastly, for the data generated from Gompertz distribution, we can see that Cox model has the better and even the best MSE and bias as the sample size increases and it manifests that Cox model can help the avoid this issue of misspecification.
-
 **Figure 1: Trajectory plot of estimation criteria($\beta=1.5$, $\lambda = 0.1$, $\alpha=5$, $\nu=5$, non censored).**
-
-
-From Figure 2 we can observe that for the data generated from Exponential distribution, Cox model tends to have the worst MSE and bias while the Exponential proportional hazards model has the best as the treatment effects increases. This refelcts the impects of fitting a complicated a model when an exponential is sufficient. For the data generated from Weibull distribution, Weibull proportional hazards model and Cox model have similar performance while the Exponential proportional hazards model has a significant poor performance. Lastly, for the data generated from Gompertz distribution, we can see that Cox model has the best MSE and bias as the sample size increases and it manifests that Cox model can help the avoid this issue of misspecification.
 
 **Figure 2: Trajectory plot of estimation criteria($n=300$, $\lambda = 0.1$, $\alpha=5$, $\nu=5$, non censored).**
 
 
-Then we wanted to visualize the model fit by plotting the survival curves. We changed the parameters to be more moderate one in order for better visualization. We plotted nonparametric estimation Kaplan-Meier as the classical and consistent estimator for the survival curve. The survival curve estimated by Exponential proportional hazards model, Weibull proportional hazards model and Cox proportional hazards model is compared to KM curve. The result is consistent to the measures in the table as well as the Figure 1 and Figure 2. For the data generated from Exponential distribution, three curves almost coincide. For the data generated from Weibull distribution, the performance of Exponential proportional hazards model is affected by misspecification. Cox model has the best fit for the data generated from Gompertz distribution. From the figure we can also observe that the expected survival time are longer with right censorhip than without, which is quite reasonable if we think of examples like dropouts.
-
-We also plotted the confidence interval using three models for data generated from the third distribution, Gompertz distribution, as shown in Figure 4. We can see that Cox model fits better to the survival curve and is usually more conservative in constructing confidence interval. The confidence intervals are wider if with some censored data.
-
-**Figure 3: Viusalization of model fit($n=300$, $\beta =1.5$, $\lambda = 0.1$, $\alpha=2$, $\nu=2$).**
-
-
-
-**Figure 4: Confidence intervals generated from three survival models(Gompertz distribution, $n=300$, $\beta =1.5$, $\lambda = 0.1$, $\alpha=2$).**
-
 
 ## Conclusions
 
-In this project, we developed a simulation study to compare three proportional hazards models by estimating the treatment effects. We conclude that the model has the best fit if the underlying distribution is exactly the same. However, it may cause problems when misspecification happens. Semi-parametric Cox model can help avoid the issue of misspecifying the baseline hazard function which is more evident when the sample size increases or treatment effect increases. In the meantime, it is not excessive then the data is simply generated. Also, our results shows that Semi-parametric Cox model has better model fit for the whole curve and a more conservative confidence interval.
 
 ## References
 \begin{enumerate}
@@ -175,41 +105,7 @@ In this project, we developed a simulation study to compare three proportional h
 \end{enumerate}
 
 ## Appendix A
-**exponential distribution**
-We got the cumulative distribution function of survival times based on the following steps. 
-$$ h_0(t) = \lambda $$
-$$\Rightarrow h(t) = h_0(t)exp(\beta^T x) = \lambda exp(\beta^T x) $$
-$$\Rightarrow H_0(t) = \int_0^t h(s) ds = \lambda t$$ 
-$$\Rightarrow H(t) = H_0(t)exp(\beta^T x) = \lambda t exp(\beta^T x)$$ 
-$$\Rightarrow F(t) = 1-e^{-H(t)} = 1-e^{-\lambda t exp(\beta^T x)} $$ 
-Then we applied the following formula to simulate survival times.
-\[
-\makebox[\linewidth]{$T = F^{-1}(U) = \frac{-logU}{\lambda exp(\beta^T x)}$} 
-\]
 
-**Weibull distribution**
-We got the cumulative distribution function of survival times based on the following steps.
-$$h_0(t) = \lambda\gamma t^{\gamma-1}$$
-$$\Rightarrow h(t) = h_0(t)exp(\beta^T x) = \lambda\gamma t^{\gamma-1} exp(\beta^T x)$$ 
-$$\Rightarrow H_0(t) = \int_0^t h(s) ds = \lambda t^\gamma$$ 
-$$\Rightarrow H(t) = H_0(t)exp(\beta^T x) = \lambda t^\gamma exp(\beta^T x)$$ 
-$$\Rightarrow F(t) = 1-e^{-H(t)} = 1-e^{-\lambda t^\gamma exp(\beta^T x)} $$ 
-Then we applied the following formula to simulate survival times.
-\[
-\makebox[\linewidth]{$T = F^{-1}(U) = (\frac{-logU}{\lambda exp(\beta^T x)})^\frac{1}{\gamma}$}
-\]
-
-**Gompertz distribution**
-We got the cumulative distribution function of survival times based on the following steps.
-$$h_0(t) = \lambda e^{\alpha t}$$
-$$\Rightarrow h(t) = h_0(t)exp(\beta^T x) = \lambda e^{\alpha t} exp(\beta^T x)$$ 
-$$\Rightarrow H_0(t) = \int_0^t h(s) ds = \frac{\lambda}{\alpha}(e^{\alpha t} - 1)$$ 
-$$\Rightarrow H(t) = H_0(t)exp(\beta^T x) = \frac{\lambda}{\alpha}(e^{\alpha t} - 1) exp(\beta^T x)$$
-$$\Rightarrow F(t) = 1-e^{-H(t)} = 1-e^{-\frac{\lambda}{\alpha}(e^{\alpha t} - 1) exp(\beta^T x)}$$
-Then we applied the following formula to simulate survival times.
-\[
-\makebox[\linewidth]{$T = F^{-1}(U) = \frac{1}{\alpha} log(1 - \frac{\alpha logU}{\lambda exp(\beta^T x)})$}
-\]
 
 
 ## Appendix B
