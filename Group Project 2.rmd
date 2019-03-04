@@ -33,7 +33,7 @@ The goal of the exerise is to build a predictive model based on logistic regress
 ```{r}
 ######## descriptive data analysis -one plot for all random variables in report
 ######## model comparison -table-estimation for betas in report
-######## cross-validation -one plot appendix
+######## cross-validation -one plot for lambda choice appendix
 ######## model diagnostic -one plot appendix
 ```
 
