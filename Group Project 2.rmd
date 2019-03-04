@@ -39,18 +39,19 @@ The goal of the exerise is to build a predictive model based on logistic regress
 
 \begin{enumerate}
 \item Build a logistic model to classify the images into malignant/benign, and write down your likelihood function, its gradient and Hessian matrix.  
-Let $y$ be the vector $n$ response random variable, $X$ denote the $n\times p$ design matrix(let$X[i]$ denote the $i$th row) and $\beta$ denote the $p\times 1$ coefficient.
+Let $y$ be the vector $n$ response random variable, $X$ denote the $n\times p$ design matrix(let$X_{i}$ denote the $i$th row) and $\beta$ denote the $p\times 1$ coefficient.
 The likelihood of logistic regression is:
-$$L(X,y,\beta) = \prod_{i=1}^n \{(\frac{\exp(X[i]\beta)}{1+\exp(X[i]\beta)})^{y_i}(\frac{1}{\exp(X[i]\beta)})^{1-y_i}\}$$
+$$L(\beta; X, y) = \prod_{i=1}^n \{(\frac{\exp(X_{i}\beta)}{1+\exp(X_{i}\beta)})^{y_i}(\frac{1}{1+\exp(X_{i}\beta)})^{1-y_i}\}$$
 Maximizing the likelihood is equivalent to maximizing the log likelihood:
 $$
 \begin{aligned}
 f(\beta) 
-& = \sum_{i=1}^n \{y_i(X[i]\beta)-\log(1+\exp(X[i]\beta))\}\\
-& = (X\beta)^T Y-\{\log(1+\exp(X\beta))\}^T Y
+& = \sum_{i=1}^n \{y_i(X_{i}\beta)-\log(1+\exp(X_{i}\beta))\}\\
+& = <X\beta, Y> - \sum_{i=1}^n\log(1+\exp(X_{i}\beta))
 \end{aligned}
 $$
-Let $p$, a vector of $n$ denote $p=\frac{\exp(X\beta)}{1+\exp(X\beta)}$. The gradient of this function is:
+Let $p$, a vector of $n$ denote $p=\frac{\exp(X\beta)}{1+\exp(X\beta)}$. 
+The gradient of this function is:
 $$\nabla f(\beta) = X^T(y-p)$$
 The Hessian is given by:
 $$\nabla^2 f(\beta) = -X^T p(1-p)^TX$$
@@ -59,23 +60,19 @@ Hessian matrix is negative definite, well behaved.
 
 ```{r}
 ###### data manipulation
-setwd("/Users/yujingyao/Desktop/")
+# setwd("/Users/yujingyao/Desktop/")
 mydata <- read.csv("breast-cancer-1.csv") 
-summary(mydata)
-head(mydata)
-dim(mydata)
 n <- dim(mydata)[1]
 p <- dim(mydata)[2]
-list <- rep(3:(p-1))
-data <- do.call(cbind,lapply(list, function(x)(mydata[,x]-mean(mydata[,x]))/sd(mydata[,x])))
-X <- data.frame(data)%>%
-  mutate(.,intercept = 1) 
-y <- as.vector(ifelse(mydata[,2]=="M",1,0))
-dat <- list(y=y,X=as.matrix(X))
-# newdat <- cbind.data.frame(y,X)
-# logfit <- glm(y~., family = binomial(link = "logit"),
-#           data = newdat)
-# summary(logfit)
+list <- c(3:(p - 1))
+data <- do.call(cbind, lapply(list, function(x) (mydata[,x] - mean(mydata[,x]))/sd(mydata[,x]))) # standardize
+X <- data.frame(data) %>% 
+  mutate(., intercept = 1)
+y <- as.vector(ifelse(mydata[,2] == "M", 1, 0))
+newdat <- cbind.data.frame(y,X)
+logfit <- glm(y~., family = binomial(link = "logit"),
+          data = newdat)
+summary(logfit)
 # didn't converge
 ```
 
@@ -83,110 +80,138 @@ dat <- list(y=y,X=as.matrix(X))
 
 ```{r}
 ##### 1. classical newton raphson
+dat <- list(y = y, X = as.matrix(X))
 logisticstuff <- function(dat, betavec){ 
-  u <- dat$X%*%betavec
+  u <- dat$X %*% betavec
   expu <- exp(u) 
-  loglik <- t(u)%*%dat$y-t(log(1+expu))%*%dat$y # Log-likelihood at betavec
-  prob <- expu / (1 + expu) # P(Y_i=1|x_i)
-  grad <-  t(dat$X)%*%(dat$y-prob)
-  Hess <- -t(dat$X)%*%prob%*%t(1-prob)%*%dat$X # Hessian at betavec
-return(list(loglik = loglik, grad = grad, Hess = Hess))}
+  loglik <- t(u) %*% dat$y - sum(t(log(1 + expu))) # Log-likelihood at betavec
+  prob <- expu / (1 + expu) # P(Y_i=1|x_i), the p vector we mentioned before
+  grad <- t(dat$X) %*% (dat$y - prob)
+  Hess <- -t(dat$X) %*% prob %*% t(1 - prob) %*% dat$X # Hessian at betavec
+  return(list(loglik = loglik, grad = grad, Hess = Hess))}
 
-NewtonRaphson <- function(dat, func, start, tol=1e-10,maxiter = 200){ 
+NewtonRaphson <- function(dat, func, start, tol=1e-10, maxiter = 200){ 
   i <- 0 
   cur <- start 
   stuff <- func(dat, cur) 
-  res <- c(0, stuff$loglik,cur)
+  res <- c(0, stuff$loglik, cur)
   prevloglik <- -Inf # To make sure it iterates 
-  while(i < maxiter && abs(stuff$loglik - prevloglik) > tol && stuff$loglik > -Inf) 
-    { i <- i + 1 
+  
+  while (i < maxiter && abs(stuff$loglik - prevloglik) > tol && stuff$loglik > -Inf) {
+    i <- i + 1 
     prevloglik <- stuff$loglik 
-    prev <- cur 
-    cur <- prev - solve(stuff$Hess) %*% stuff$grad 
+    prev <- cur # theta i
+    cur <- prev - solve(stuff$Hess) %*% stuff$grad  # theta i+1
     stuff <- func(dat, cur) # log-lik, gradient, Hessian 
     res <- rbind(res, c(i, stuff$loglik, cur))}  
-  return(round(res[nrow(res),3:ncol(res)],2))
+  
+  return(round(res[nrow(res),3:ncol(res)], 2))
 }
-ans1 <- NewtonRaphson(dat,logisticstuff,rep(1,31),maxiter = 500)
+# ans1 <- NewtonRaphson(dat,logisticstuff, rep(1, 31), maxiter = 500)
 # Error in solve.default(stuff$Hess) : singular
-
-##### 2. gradient descent
-gradient <- function(dat, func, start, tol=1e-5,maxiter = 200){ 
-  i <- 0 
-  cur <- start 
-  pp <- length(start)
-  stuff <- func(dat, cur) 
-  res <- c(0, stuff$loglik,cur)
-  prevloglik <- -Inf # To make sure it iterates 
-  while(i <= maxiter && abs(stuff$loglik - prevloglik) > tol && stuff$loglik > -Inf) 
-    { i <- i + 1 
-    prevloglik <- stuff$loglik 
-    prev <- cur 
-    cur <- prev + (diag(pp)/10)%*% (stuff$grad) 
-    stuff <- func(dat, cur) # log-lik, gradient, Hessian 
-    res <- rbind(res, c(i, stuff$loglik, cur))}  
-  return(round(res[nrow(res),3:ncol(res)],2))
-}
-ans2 <- gradient(dat,logisticstuff,rep(0,31),maxiter = 500)
-
-##### 3. coordinate-wise decent update
-coordinate <- function(dat, start, tol=1e-10,maxiter = 200){ 
-  i <- 0 
-  pp <- length(start)
-  n <- length(dat$y)
-  betavec <- start 
-  u <- dat$X%*%betavec
-  expu <- exp(u) 
-  loglik <- t(u)%*%dat$y-t(log(1+expu))%*%dat$y 
-  res <- c(0, loglik, betavec)
-  prevloglik <- -Inf # To make sure it iterates 
-  while(i < maxiter && abs(loglik - prevloglik) > tol && loglik > -Inf) 
-    { i <- i + 1 
-    prevloglik <- loglik
-    prev <- betavec
-    for (j in 1:pp){
-      ynoj <- dat$X[,-j]%*%betavec[-j]
-      betavec[j] <- 1/n*(t(dat$X[,j])%*%(dat$y-ynoj))
-    }
-    u <- dat$X%*%betavec
-    expu <- exp(u) 
-    loglik <- t(u)%*%dat$y-t(log(1+expu))%*%dat$y 
-    res <- rbind(res, c(i, loglik, betavec))}  
-  return(round(res[nrow(res),3:ncol(res)],2))
-}
-ans3 <- coordinate(dat,rep(1,31))
 ```
 
+```{r}
+##### 2. gradient descent
+gradient <- function(dat, func, start, tol=1e-5, maxiter = 200){ 
+  i <- 0 
+  cur <- start 
+  pp <- length(start)
+  stuff <- func(dat, cur) 
+  res <- c(0, stuff$loglik, cur)
+  prevloglik <- -Inf # To make sure it iterates 
+  while (i < maxiter && abs(stuff$loglik - prevloglik) > tol && stuff$loglik > -Inf) { 
+    i <- i + 1 
+    prevloglik <- stuff$loglik 
+    prev <- cur 
+    cur <- prev + (diag(pp)/20) %*% (stuff$grad) # smaller step
+    stuff <- func(dat, cur) # log-lik, gradient, Hessian 
+    res <- rbind(res, c(i, stuff$loglik, cur))} 
+  
+  return(res)
+}
+ans2 <- gradient(dat, logisticstuff, rep(3,31), maxiter = 200)
+# we choose start point at rep(3,31), and step = diag(pp)/30, but still it doesn't converge
+```
+
+```{r}
+##### 3. coordinate-wise decent update
+coordinate <- function(dat, start, tol=1e-10, maxiter = 200) { 
+  i <- 0 
+  pp <- length(start)
+  n <- length(dat$y)
+  betavec <- start
+  u <- dat$X %*% betavec
+  expu <- exp(u) 
+  loglik <- t(u) %*% dat$y - sum(t(log(1 + expu)))
+  res <- c(0, loglik, betavec)
+  prevloglik <- -Inf # To make sure it iterates 
+  while (i < maxiter && abs(loglik - prevloglik) > tol && loglik > -Inf) { 
+    i <- i + 1 
+    prevloglik <- loglik
+    prev <- betavec
+    for (j in 1:pp) {
+      ynoj <- dat$X[,-j] %*% betavec[-j]
+      betavec[j] <- 1/n * (t(dat$X[,j]) %*% (dat$y - ynoj))
+    }
+    u <- dat$X %*% betavec
+    expu <- exp(u) 
+    loglik <- t(u) %*% dat$y - t(log(1 + expu)) %*% dat$y 
+    res <- rbind(res, c(i, loglik, betavec))}  
+  
+  return(res)
+}
+ans3 <- coordinate(dat, rep(1, 31), maxiter = 1000)
+# start point at rep(1, 31) converges well
+```
 
 \item Build a logistic-LASSO model to select features, and impletement the pathwise coordinatewise optimization algorithm to obtain a path of solutions with a sequence of descending $\lambda$'s. 
+
 ```{r}
-##### 4.coordinate-wise decent update with lasso
-sfun <- function(beta,lambda) sign(beta)*max((beta-lambda),0)
-coordinatelasso <- function(lambda,dat, start, tol=1e-10,maxiter = 200){ 
+##### 4. coordinate-wise logistic lasso
+sfun <- function(beta,lambda) sign(beta) * max((abs(beta) - lambda), 0)
+coordinatelasso <- function(lambda, dat, start, tol=1e-10, maxiter = 200) {
   i <- 0 
   pp <- length(start)
   n <- length(dat$y)
   betavec <- start 
-  u <- (dat$X)%*%betavec
+  u <- (dat$X) %*% betavec
   expu <- exp(u) 
-  loglik <- t(u)%*%dat$y-t(log(1+expu))%*%dat$y + sum(lambda*abs(betavec))
+  loglik <- t(u) %*% dat$y - sum(t(log(1 + expu))) + sum(lambda * abs(betavec))
   res <- c(0, loglik, betavec)
   prevloglik <- -Inf # To make sure it iterates 
-  while(i < maxiter && abs(loglik - prevloglik) > tol && loglik > -Inf) 
-    { i <- i + 1 
+  while(i < maxiter && abs(loglik - prevloglik) > tol && loglik > -Inf) {
+    i <- i + 1 
     prevloglik <- loglik
     prev <- betavec
     for (j in 1:pp){
-      ynoj <- dat$X[,-j]%*%betavec[-j]
-      betavec[j] <- sfun(1/n*(t(dat$X[,j])%*%(dat$y-ynoj)),lambda)
+      ynoj <- dat$X[,-j] %*% betavec[-j]
+      betavec[j] <- sfun(1 / n * (t(dat$X[,j]) %*% (dat$y - ynoj)), lambda)
     }
-    u <- dat$X%*%betavec
+    u <- dat$X %*% betavec
     expu <- exp(u) 
-    loglik <- t(u)%*%dat$y-t(log(1+expu))%*%dat$y + sum(lambda*abs(betavec))
+    loglik <- t(u) %*% dat$y - sum(t(log(1 + expu))) + sum(lambda * abs(betavec))
     res <- rbind(res, c(i, loglik, betavec))}  
-  return(round(res[nrow(res),3:ncol(res)],2))
+  
+  return(res[nrow(res), 3:ncol(res)])
 }
-ans4 <- coordinatelasso(lambda =1e-2, dat,rep(1,31))
+ans4 <- coordinatelasso(lambda = 1e-2, dat,rep(1,31))
+```
+
+```{r}
+##### 4.1 coordinate-wise descent update with lasso
+lambda.seq = seq(to = 0.5, from = 1e-2, length.out = 100)
+res = c()
+for (i in lambda.seq) {
+  res = rbind(res, coordinatelasso(lambda = i, dat,rep(1,31)))
+}
+
+res %>% 
+  as.tibble() %>% 
+  mutate(lambda = lambda.seq) %>% 
+  gather(key = para, value = estimate, V1:V31) %>% 
+  ggplot(aes(x = lambda, y = estimate, group = para, col = para)) +
+  geom_line()
 ```
 
 \item Use 5-fold cross-validation to select the best $\lambda$. Compare the prediction performance between the 'optimal' model and 'full' model  
@@ -195,19 +220,19 @@ ans4 <- coordinatelasso(lambda =1e-2, dat,rep(1,31))
 set.seed (99999)
 K <- 5
 folds <- sample(1:K, n, replace=TRUE)
-grid <- 10^seq(-2,0, length=100)
+grid <- seq(1e-2, 0.5, length=100)
 list <- seq(1:100)
 cvresult <- do.call(cbind,lapply(list,function(x){
   cv.errors <- vector()
   for (i in 1:K){
-  loglasbeta <- coordinatelasso(grid[x], 
-                                list(X=as.matrix(X[folds!=i,]),y=y[folds!=i]),
-                                start= rep(1,31),tol=1e-1,maxiter = 20)
-  u <- as.matrix(X[folds==i,])%*%loglasbeta
-  expu <- exp(u) 
-  prob <- expu / (1 + expu) 
-  pred <- ifelse(prob >=0.5,1,0)
-  cv.errors[i] = mean((as.vector(y[folds==i])-as.vector(pred))^2) 
+    loglasbeta <- coordinatelasso(grid[x], 
+                                  list(X=as.matrix(X[folds!=i,]),y=y[folds!=i]),
+                                  start= rep(1,31),tol=1e-1,maxiter = 20)
+    u <- as.matrix(X[folds==i,])%*%loglasbeta
+    expu <- exp(u) 
+    prob <- expu / (1 + expu) 
+    pred <- ifelse(prob >=0.5,1,0)
+    cv.errors[i] = mean((as.vector(y[folds==i])-as.vector(pred))^2)  # MSE
   }
   cv.errors.mean <- mean(cv.errors)
   cv.errors.se <- sqrt(var(cv.errors)/K)
@@ -217,15 +242,16 @@ cvresult <- do.call(cbind,lapply(list,function(x){
 result <- t(rbind(grid, cvresult))
 colnames(result) <-c("grid","cv.error","cv.se")
 best.lambda <- result[which.min(result[,2]),1]
-final <- coordinatelasso(lambda =best.lambda, dat,rep(1,31))
+final <- coordinatelasso(lambda = best.lambda, dat,rep(1,31))
 
 # plot
 result <- data.frame(result)
 plot(result$grid, result$cv.error, type="n", xlab="Lambda",cex.lab=1,xaxt="n",cex.axis=1, cex.main=1,
      ylab="CV error", main="Figure 3: Lasso regression by 5 fold cross validation", ylim=c(0,1))
 lines(result$grid, result$cv.error ,pch=16, col=4,lwd=1.5, type="b", cex=1)
-with(data = result, expr = errbar(grid, cv.error, cv.error+cv.se, cv.error-cv.se, add=T, pch=1, cap=.015, log="x"))
+# with(data = result, expr = errbar(grid, cv.error, cv.error+cv.se, cv.error-cv.se, add=T, pch=1, cap=.015, log="x"))
 abline(v=best.lambda,col=3,lty=3)
+text(0.3, 0.8, labels = paste("best lambda = ", round(best.lambda, 3), sep = ""))
 axis(side=1,at=c(0.2, 0.4, 0.6, 0.8, 1.0),labels=c("0.2", "0.4", "0.6","0.8",'1'), cex.axis=1)
 ```
 
