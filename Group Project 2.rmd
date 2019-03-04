@@ -220,7 +220,7 @@ res %>%
 set.seed (99999)
 K <- 5
 folds <- sample(1:K, n, replace=TRUE)
-grid <- 10^seq(-2,0, length=100)
+grid <- 10^seq(-2, 0, length=100)
 list <- seq(1:100)
 cvresult <- do.call(cbind,lapply(list,function(x){
   cv.errors <- vector()
@@ -242,7 +242,7 @@ cvresult <- do.call(cbind,lapply(list,function(x){
 result <- t(rbind(grid, cvresult))
 colnames(result) <-c("grid","cv.error","cv.se")
 best.lambda <- result[which.min(result[,2]),1]
-final <- coordinatelasso(lambda =best.lambda, dat,rep(1,31))
+final <- coordinatelasso(lambda = best.lambda, dat,rep(1,31))
 
 # plot
 result <- data.frame(result)
