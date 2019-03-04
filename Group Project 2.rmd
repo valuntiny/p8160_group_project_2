@@ -249,7 +249,7 @@ result <- data.frame(result)
 plot(result$grid, result$cv.error, type="n", xlab="Lambda",cex.lab=1,xaxt="n",cex.axis=1, cex.main=1,
      ylab="CV error", main="Figure 3: Lasso regression by 5 fold cross validation", ylim=c(0,1))
 lines(result$grid, result$cv.error ,pch=16, col=4,lwd=1.5, type="b", cex=1)
-with(data = result, expr = errbar(grid, cv.error, cv.error+cv.se, cv.error-cv.se, add=T, pch=1, cap=.015, log="x"))
+# with(data = result, expr = errbar(grid, cv.error, cv.error+cv.se, cv.error-cv.se, add=T, pch=1, cap=.015, log="x"))
 abline(v=best.lambda,col=3,lty=3)
 axis(side=1,at=c(0.2, 0.4, 0.6, 0.8, 1.0),labels=c("0.2", "0.4", "0.6","0.8",'1'), cex.axis=1)
 ```
