@@ -1,34 +1,39 @@
 ---
-title: "Group Projects on Optimization Algorithms."
-date: "P8160 Advanced Statistical Computing "
+title: "Group Projects on Optimization Algorithms"
+date: "P8160 Advanced Statistical Computing"
 output: pdf_document #html_document
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
-library(Hmisc)
+library(Hmisc)#for errvar
 library(ggcorrplot) # for correlation heatmap
+library(ggpubr) # common legend
+library(matrixcalc) #is.negative.def
+library(kableExtra) # table
 set.seed(99999)
 ```
 
 # Breast Cancer Diagnosis
 
-The data \textit{breast-cancer.csv} have 569 row and 33 columns. The first column \textbf{ID} lables individual breast tissue images; The second column \textbf{Diagnonsis} indentifies if the image is coming from cancer tissue or benign cases (M=malignant, B = benign). There are 357  benign and 212  malignant cases. The other 30 columns correspond to mean, standard deviation and the largest values (points on the tails) of the distributions of the following 10 features computed for the cellnuclei;
+The data \textit{breast-cancer.csv} have 569 row and 33 columns. The first column \textbf{ID} lables individual breast tissue images; The second column \textbf{Diagnonsis} indentifies if the image is coming from cancer tissue or benign cases (M=malignant, B = benign). There are 357  benign and 212  malignant cases. The other 30 columns correspond to mean, standard deviation and the largest values (points on the tails) of the distributions of the following 10 features computed for the cellnuclei.
 \begin{itemize}
 \item radius (mean of distances from center to points on the perimeter)
 \item texture (standard deviation of gray-scale values)
 \item perimeter
 \item area
 \item smoothness (local variation in radius lengths)
-\item compactness (perimeter\^ 2 / area - 1.0)
+\item compactness ($perimeter^2/area$ - 1.0)
 \item concavity (severity of concave portions of the contour)
 \item concave points (number of concave portions of the contour)
 \item symmetry
 \item fractal dimension ("coastline approximation" - 1)
 \end{itemize}
 
-The goal of the exerise is to build a predictive model based on logistic regression to facilicate cancer diagnosis; 
+The goal of the exerise is to build a predictive model based on logistic regression to facilicate cancer diagnosis.
+
+# Answer: 
 
 \textbf{Your to-do-list is}
 ```{r}
@@ -38,8 +43,8 @@ The goal of the exerise is to build a predictive model based on logistic regress
 ######## model diagnostic -one plot appendix
 ```
 
-\begin{enumerate}
-\item Build a logistic model to classify the images into malignant/benign, and write down your likelihood function, its gradient and Hessian matrix.  
+
+1. Build a logistic model to classify the images into malignant/benign, and write down your likelihood function, its gradient and Hessian matrix.  
 Let $y$ be the vector $n$ response random variable, $X$ denote the $n\times p$ design matrix(let$X_{i}$ denote the $i$th row) and $\beta$ denote the $p\times 1$ coefficient.
 The likelihood of logistic regression is:
 $$L(\beta; X, y) = \prod_{i=1}^n \{(\frac{\exp(X_{i}\beta)}{1+\exp(X_{i}\beta)})^{y_i}(\frac{1}{1+\exp(X_{i}\beta)})^{1-y_i}\}$$
@@ -55,155 +60,163 @@ Let $p$, a vector of $n$ denote $p=\frac{\exp(X\beta)}{1+\exp(X\beta)}$.
 The gradient of this function is:
 $$\nabla f(\beta) = X^T(y-p)$$
 The Hessian is given by:
-$$\nabla^2 f(\beta) = -X^T p(1-p)^TX$$
+$$\nabla^2 f(\beta) = -X^T W X$$ where $W = diag(p_1(1-p_1),p_2(1-p_2),\cdots,p_n(1-p_n))$
 Hessian matrix is negative definite, well behaved.
 
 
 ```{r}
 ###### data manipulation
-# setwd("/Users/yujingyao/Desktop/")
+setwd("/Users/yujingyao/Desktop/")
 mydata <- read.csv("breast-cancer-1.csv") 
 n <- dim(mydata)[1]
 p <- dim(mydata)[2]
 list <- c(3:(p - 1))
-data <- do.call(cbind, lapply(list, function(x) (mydata[,x] - mean(mydata[,x]))/sd(mydata[,x]))) # standardize
-X <- data.frame(data) %>% 
+namesX <- names(mydata)[-c(1,2,p)]
+# standardize
+dataX <- do.call(cbind, lapply(list, function(x) (mydata[,x] - mean(mydata[,x]))/sd(mydata[,x]))) 
+# design matrix
+X <- data.frame(dataX) %>% 
   mutate(., intercept = 1)
-y <- as.vector(ifelse(mydata[,2] == "M", 1, 0))
-newdat <- cbind.data.frame(y,X)
-logfit <- glm(y~., family = binomial(link = "logit"),
-          data = newdat)
-summary(logfit)
-# didn't converge
+# response
+resp <- as.vector(ifelse(mydata[,2] == "M", 1, 0))
 ```
 
 ```{r}
-### check collinearity
-mydata %>% 
-  select(-id, -diagnosis, -X) %>% 
-  select(starts_with("radius"), starts_with("texture"), starts_with("perimeter"), starts_with("area"), starts_with("smooth"), starts_with("compact"), starts_with("concavity"), starts_with("concave"), starts_with("symmetry"), starts_with("fractal")) %>% 
-  select(-starts_with("area"), -starts_with("perimeter")) %>% 
+###### plot to check collinearity
+colnames(dataX) <-namesX
+colinearity.plot <- function(data){
+  data.frame(data) %>% 
+  select(starts_with("radius"), 
+         starts_with("texture"), 
+         starts_with("perimeter"), 
+         starts_with("area"), 
+         starts_with("smooth"), 
+         starts_with("compact"), 
+         starts_with("concavity"), 
+         starts_with("concave"), 
+         starts_with("symmetry"), 
+         starts_with("fractal")) %>% 
   cor() %>% 
-  ggcorrplot()
+  ggcorrplot(.,ggtheme = ggplot2::theme_gray,
+             colors = c("#6D9EC1", "white", "#E46726"),
+             tl.cex = 6)}
+g1 <- colinearity.plot(dataX)
 
-mydata <- read.csv("breast-cancer-1.csv") %>% 
-  select(-id, -diagnosis, -X) %>% 
-  select(starts_with("radius"), starts_with("texture"), starts_with("perimeter"), starts_with("area"), starts_with("smooth"), starts_with("compact"), starts_with("concavity"), starts_with("concave"), starts_with("symmetry"), starts_with("fractal"))
-  
-  ggcorrplot()
-  
-mydata = mydata %>% 
-  select(-id, -diagnosis, -X) %>% 
-  select(-starts_with("area"), -starts_with("perimeter"))
-
-mydata %>% 
-  cor() %>% 
-  ggcorrplot()
-
-n <- dim(mydata)[1]
-p <- dim(mydata)[2]
-list <- c(3:(p - 1))
-data <- do.call(cbind, lapply(list, function(x) (mydata[,x] - mean(mydata[,x]))/sd(mydata[,x]))) # standardize
-X <- data.frame(data) %>% 
-  mutate(., intercept = 1)
-y <- as.vector(ifelse(mydata[,2] == "M", 1, 0))
-newdat <- cbind.data.frame(y,X)
-logfit <- glm(y~., family = binomial(link = "logit"), data = newdat)
+###### variable selection
+eig <- eigen(cor(dataX))$values
+# found values very close to 0, multicolinearity exists
+# function: find the maximum correlation between i and j
+max.corr <- function(data){
+  len = dim(data)[2]
+  a <- 0.5
+  for (i in 1:(len-1)) {
+    for (j in (i+1):len) {
+      if(abs(cor(data[,i],data[,j]))> a) a <- cor(data[,i],data[,j])
+    }
+  }
+  return(round(a,3))
+}
+# function: update dataset according to several rules:eigenvalues and corr
+selection <- function(data,eigen.tol,corr.tol){
+  while (min(eigen(cor(data))$values) <= eigen.tol & max.corr(data) >= corr.tol){
+       temp <- data
+       data <- temp[,-(which(round(abs(cor(temp)),3) == max.corr(temp),arr.ind = TRUE)[1,1])]
+      }
+  return(data)}
+newdataX <- selection(dataX, eigen.tol=1e-2,corr.tol = 0.8)
+g2 <- colinearity.plot(newdataX)
+eigpost <- eigen(cor(newdataX))$values
+# look at the difference of the deleted colums
+delnames <- setdiff(colnames(dataX),colnames(newdataX))
+ggarrange(g1,g2, ncol=2, nrow=1, common.legend = TRUE, legend="bottom")
 ```
 
-\item Develop a Newton-Raphson algoirthm to estimate your model; 
+
+2. Develop a Newton-Raphson algoirthm to estimate your model; 
+
+```{r}
+###### 0.logistic regression
+logfit.0 <- glm(resp~dataX, family = binomial(link = "logit"))
+# algorithm didn't converge without delete colinearity
+logdata <- cbind.data.frame(resp,newdataX)
+logfit.1 <- glm(resp~., family = binomial(link = "logit"),data = logdata)
+logit.beta <- coef(logfit.1)
+```
 
 ```{r}
 ##### 1. classical newton raphson
-dat <- list(y = y, X = as.matrix(X))
+newX <- data.frame(newdataX) %>%
+  mutate(., intercept = 1)
+newdat <- list(y = resp, X = as.matrix(newX))
+# function: calcualte loglik, gradient, hessian
 logisticstuff <- function(dat, betavec){ 
   u <- dat$X %*% betavec
   expu <- exp(u) 
-  loglik <- t(u) %*% dat$y - sum(t(log(1 + expu))) # Log-likelihood at betavec
-  prob <- expu / (1 + expu) # P(Y_i=1|x_i), the p vector we mentioned before
+  loglik <- t(u) %*% dat$y - sum((log(1 + expu))) # Log-likelihood at betavec
+  prob <- expu / (1 + expu) # P(Y_i=1|x_i)
   grad <- t(dat$X) %*% (dat$y - prob)
-  Hess <- -t(dat$X) %*% prob %*% t(1 - prob) %*% dat$X # Hessian at betavec
+  Hess <- -t(dat$X) %*% diag(as.vector(prob*(1 - prob))) %*% dat$X # Hessian at betavec
   return(list(loglik = loglik, grad = grad, Hess = Hess))}
-
-NewtonRaphson <- function(dat, func, start, tol=1e-10, maxiter = 200){ 
+NewtonRaphson <- function(dat, func, start, tol=1e-10, maxiter =200){ 
   i <- 0 
   cur <- start 
   stuff <- func(dat, cur) 
   res <- c(0, stuff$loglik, cur)
-  prevloglik <- -Inf # To make sure it iterates 
-  
+  prevloglik <- -Inf 
   while (i < maxiter && abs(stuff$loglik - prevloglik) > tol && stuff$loglik > -Inf) {
     i <- i + 1 
     prevloglik <- stuff$loglik 
-    prev <- cur # theta i
-    cur <- prev - solve(stuff$Hess) %*% stuff$grad  # theta i+1
-    stuff <- func(dat, cur) # log-lik, gradient, Hessian 
-    res <- rbind(res, c(i, stuff$loglik, cur))}  
-  
-  return(round(res[nrow(res),3:ncol(res)], 2))
+    prev <- cur 
+    cur <- prev - solve(stuff$Hess) %*% stuff$grad
+    # # step halving
+    #     lambda <- 1
+    #     curtemp <- prev - solve(stuff$Hess) %*% stuff$grad 
+    #     while(func(dat, curtemp)$loglik <= func(dat,prev)$loglik){
+    #       lambda <- lambda*(1/2)
+    #       curtemp <- prev - solve(stuff$Hess) %*% stuff$grad
+    #     }
+    #     cur <- curtemp
+    # # step halving
+    stuff <- func(dat, cur) 
+    res <- rbind(res, c(i, stuff$loglik, cur))}
+  return(res)
 }
-# ans1 <- NewtonRaphson(dat,logisticstuff, rep(1, 31), maxiter = 500)
-# Error in solve.default(stuff$Hess) : singular
+newres <- NewtonRaphson(newdat,logisticstuff, start = rep(0, dim(newdat$X)[2]))
+# check convergence
+check <- tail(newres)[,1:2]
+newton.beta <- newres[nrow(newres),3:dim(newres)[2]]
 ```
 
 ```{r}
 ##### 2. gradient descent
-gradient <- function(dat, func, start, tol=1e-5, maxiter = 200){ 
+gradient <- function(dat, func, start, tol=1e-10,maxiter =200){ 
   i <- 0 
   cur <- start 
   pp <- length(start)
   stuff <- func(dat, cur) 
+  hess <- t(dat$X)%*%(dat$X)# double check
   res <- c(0, stuff$loglik, cur)
-  prevloglik <- -Inf # To make sure it iterates 
+  prevloglik <- -Inf
   while (i < maxiter && abs(stuff$loglik - prevloglik) > tol && stuff$loglik > -Inf) { 
     i <- i + 1 
     prevloglik <- stuff$loglik 
     prev <- cur 
-    cur <- prev + (diag(pp)/20) %*% (stuff$grad) # smaller step
-    stuff <- func(dat, cur) # log-lik, gradient, Hessian 
+    cur <- prev + solve(hess) %*% (stuff$grad)
+    stuff <- func(dat, cur) 
     res <- rbind(res, c(i, stuff$loglik, cur))} 
-  
   return(res)
 }
-ans2 <- gradient(dat, logisticstuff, rep(3,31), maxiter = 200)
-# we choose start point at rep(3,31), and step = diag(pp)/30, but still it doesn't converge
+gradres <- gradient(newdat, logisticstuff, start = rep(0, dim(newdat$X)[2]),maxiter =2000)
+# check convergence
+check <- tail(gradres)[,1:2]
+grad.beta <- gradres[nrow(gradres),3:dim(gradres)[2]]
 ```
 
-```{r}
-##### 3. coordinate-wise decent update
-coordinate <- function(dat, start, tol=1e-10, maxiter = 200) { 
-  i <- 0 
-  pp <- length(start)
-  n <- length(dat$y)
-  betavec <- start
-  u <- dat$X %*% betavec
-  expu <- exp(u) 
-  loglik <- t(u) %*% dat$y - sum(t(log(1 + expu)))
-  res <- c(0, loglik, betavec)
-  prevloglik <- -Inf # To make sure it iterates 
-  while (i < maxiter && abs(loglik - prevloglik) > tol && loglik > -Inf) { 
-    i <- i + 1 
-    prevloglik <- loglik
-    prev <- betavec
-    for (j in 1:pp) {
-      ynoj <- dat$X[,-j] %*% betavec[-j]
-      betavec[j] <- 1/n * (t(dat$X[,j]) %*% (dat$y - ynoj))
-    }
-    u <- dat$X %*% betavec
-    expu <- exp(u) 
-    loglik <- t(u) %*% dat$y - t(log(1 + expu)) %*% dat$y 
-    res <- rbind(res, c(i, loglik, betavec))}  
-  
-  return(res)
-}
-ans3 <- coordinate(dat, rep(1, 31), maxiter = 1000)
-# start point at rep(1, 31) converges well
-```
 
-\item Build a logistic-LASSO model to select features, and impletement the pathwise coordinatewise optimization algorithm to obtain a path of solutions with a sequence of descending $\lambda$'s. 
+3. Build a logistic-LASSO model to select features, and impletement the pathwise coordinatewise optimization algorithm to obtain a path of solutions with a sequence of descending $\lambda$'s. 
 
 ```{r}
-##### 4. coordinate-wise logistic lasso
+##### 3. coordinate-wise logistic lasso
 sfun <- function(beta,lambda) sign(beta) * max((abs(beta) - lambda), 0)
 coordinatelasso <- function(lambda, dat, start, tol=1e-10, maxiter = 200) {
   i <- 0 
@@ -212,7 +225,13 @@ coordinatelasso <- function(lambda, dat, start, tol=1e-10, maxiter = 200) {
   betavec <- start 
   u <- (dat$X) %*% betavec
   expu <- exp(u) 
+  prob <- expu/(expu+1)
+  # weighted updates
+  w <- prob*(1-prob)
+  z <- u + (dat$y-prob)/w
   loglik <- t(u) %*% dat$y - sum(t(log(1 + expu))) + sum(lambda * abs(betavec))
+  # quardratic approximation to the log likelihood
+  # loglik <- -1/2*(1/n)*sum(w*(z-u)^2) + sum(lambda * abs(betavec)) 
   res <- c(0, loglik, betavec)
   prevloglik <- -Inf # To make sure it iterates 
   while(i < maxiter && abs(loglik - prevloglik) > tol && loglik > -Inf) {
@@ -221,79 +240,147 @@ coordinatelasso <- function(lambda, dat, start, tol=1e-10, maxiter = 200) {
     prev <- betavec
     for (j in 1:pp){
       ynoj <- dat$X[,-j] %*% betavec[-j]
-      betavec[j] <- sfun(1 / n * (t(dat$X[,j]) %*% (dat$y - ynoj)), lambda)
+      betavec[j] <- sfun(sum(w*(dat$X[,j])*(dat$y - ynoj))/(sum(w*(dat$X[,j])^2)), lambda)
     }
     u <- dat$X %*% betavec
     expu <- exp(u) 
     loglik <- t(u) %*% dat$y - sum(t(log(1 + expu))) + sum(lambda * abs(betavec))
+    # quardratic approximation to the log likelihood
+    # loglik <- -1/2*(1/n)*sum(w*(z-u)^2) + sum(lambda * abs(betavec))
     res <- rbind(res, c(i, loglik, betavec))}  
-  
-  return(res[nrow(res), 3:ncol(res)])
+  return(res)
 }
-ans4 <- coordinatelasso(lambda = 1e-2, dat,rep(1,31))
+corres <- coordinatelasso(lambda = 0.5, newdat, start = rep(0, dim(newdat$X)[2]))
+check <- tail(corres)[,1:2]
+cor.beta <- corres[nrow(corres),3:dim(corres)[2]]
+
+# impletement the pathwise coordinatewise optimization algorithm to obtain a path of solutions
+path <- function(inputx,inputy,grid){
+  start <- rep(0, dim(inputx)[2])
+  betas <- NULL
+  for (x in 1:100) {
+  cv.errors <- vector()
+    cor.result <- coordinatelasso(lambda = grid[x], 
+                                  dat = list(X=as.matrix(inputx),y=inputy),
+                                  start= start)
+    lasbeta <- cor.result[nrow(cor.result),3:dim(cor.result)[2]]
+    start <- lasbeta
+    betas <- rbind(betas,c(lasbeta))
+  }
+  return(data.frame(cbind(grid,betas)))
+}
+path.out <- path(newX,resp,grid=seq(0.5, 1e-2, length=100))
+colnames(path.out) <- c("grid",colnames(newdataX),"the intercept")
+# plot a path of solutions
+path.plot <- path.out %>%
+  gather(key = par, value = estimate, c(2:dim(path.out)[2])) %>% 
+  ggplot(aes(x = grid, y = estimate, group = par, col = par)) +
+  geom_line()+
+  ggtitle("Figure 1: a path of solutions with a sequence of descending lambda's")+
+  xlab("Lambda") + ylab("Estimate") 
 ```
 
-```{r}
-##### 4.1 coordinate-wise descent update with lasso
-lambda.seq = seq(to = 0.5, from = 1e-2, length.out = 100)
-res = c()
-for (i in lambda.seq) {
-  res = rbind(res, coordinatelasso(lambda = i, dat,rep(1,31)))
-}
 
-res %>% 
-  as.tibble() %>% 
-  mutate(lambda = lambda.seq) %>% 
-  gather(key = para, value = estimate, V1:V31) %>% 
-  ggplot(aes(x = lambda, y = estimate, group = para, col = para)) +
-  geom_line()
-```
-
-\item Use 5-fold cross-validation to select the best $\lambda$. Compare the prediction performance between the 'optimal' model and 'full' model  
+4. Use 5-fold cross-validation to select the best $\lambda$. Compare the prediction performance between the 'optimal' model and 'full' model  
 ```{r}
-##### 5-fold cross-validation
-set.seed (99999)
-K <- 5
-folds <- sample(1:K, n, replace=TRUE)
-grid <- seq(1e-2, 0.5, length=100)
-list <- seq(1:100)
-cvresult <- do.call(cbind,lapply(list,function(x){
+##### 5-fold cross-validation and pathwise coordinatewise optimization algorithm
+# when lambda = 0.5, all the betas go to 0
+cvresult <- function(inputx,inputy,grid,K){
+  n <- dim(inputx)[1]
+  folds <- sample(1:K, n, replace=TRUE)
+  start <- rep(0, dim(inputx)[2])
+  cv.error <- vector()
+  cv.se <- vector()
+  for (x in 1:100) {
   cv.errors <- vector()
   for (i in 1:K){
-    loglasbeta <- coordinatelasso(grid[x], 
-                                  list(X=as.matrix(X[folds!=i,]),y=y[folds!=i]),
-                                  start= rep(1,31),tol=1e-1,maxiter = 20)
-    u <- as.matrix(X[folds==i,])%*%loglasbeta
+    cor.result <- coordinatelasso(lambda = grid[x], 
+                                  dat = list(X=as.matrix(inputx[folds!=i,]),y=inputy[folds!=i]),
+                                  start= start)
+    lasbeta <- cor.result[nrow(cor.result),3:dim(cor.result)[2]]
+    u <- as.matrix(inputx[folds==i,])%*%lasbeta
     expu <- exp(u) 
     prob <- expu / (1 + expu) 
     pred <- ifelse(prob >=0.5,1,0)
-    cv.errors[i] = mean((as.vector(y[folds==i])-as.vector(pred))^2)  # MSE
+    cv.errors[i] = mean((as.vector(inputy[folds==i])-as.vector(pred))^2) # MSE
+    start <- lasbeta
   }
-  cv.errors.mean <- mean(cv.errors)
-  cv.errors.se <- sqrt(var(cv.errors)/K)
-  return(c(cv.errors.mean,cv.errors.se))
+  cv.error[x] <- mean(cv.errors)
+  cv.se[x] <- sqrt(var(cv.errors)/K)
   }
-))
-result <- t(rbind(grid, cvresult))
-colnames(result) <-c("grid","cv.error","cv.se")
+  return(cbind(grid,cv.error,cv.se))
+}
+
+result <- cvresult(newX,resp,grid=seq(0.5, 1e-2, length=100),K=5)
+# result <- cvresult(X,resp,grid=seq(0.5, 1e-2, length=100),K=5)
 best.lambda <- result[which.min(result[,2]),1]
-final <- coordinatelasso(lambda = best.lambda, dat,rep(1,31))
+finlasso <- coordinatelasso(lambda = best.lambda, newdat, start = rep(0, dim(newdat$X)[2]))
+check <- tail(finlasso)[,1:2]
+lasso.beta <- finlasso[nrow(finlasso),3:dim(finlasso)[2]]
 
-# plot
+# plot for cross validation
 result <- data.frame(result)
-plot(result$grid, result$cv.error, type="n", xlab="Lambda",cex.lab=1,xaxt="n",cex.axis=1, cex.main=1,
-     ylab="CV error", main="Figure 3: Lasso regression by 5 fold cross validation", ylim=c(0,1))
-lines(result$grid, result$cv.error ,pch=16, col=4,lwd=1.5, type="b", cex=1)
-# with(data = result, expr = errbar(grid, cv.error, cv.error+cv.se, cv.error-cv.se, add=T, pch=1, cap=.015, log="x"))
-abline(v=best.lambda,col=3,lty=3)
-text(0.3, 0.8, labels = paste("best lambda = ", round(best.lambda, 3), sep = ""))
-axis(side=1,at=c(0.2, 0.4, 0.6, 0.8, 1.0),labels=c("0.2", "0.4", "0.6","0.8",'1'), cex.axis=1)
+cv.plot <- 
+    ggplot(result, aes(x=result$grid, y=result$cv.error)) + 
+    geom_errorbar(aes(ymin=result$cv.error-result$cv.se, ymax=result$cv.error+result$cv.se),
+                  colour=1) +
+    geom_line() +
+    geom_point(size=1,colour = 4) +
+    ggtitle("Figure 2: Lasso regression by 5 fold cross validation")+
+    xlab("Lambda") + ylab("CV error") +
+    geom_vline(xintercept = best.lambda,col=3,lty=3)
+ggarrange(path.plot,cv.plot, ncol=1, nrow=2)
 ```
 
-\item Write a report to summarize your findings.
-\end{enumerate}
-# Answer: 
-```{r }
+5. Write a report to summarize your findings.
+
+```{r}
+######## compare prediction performance of all results
+pred.fun <- function(outcome,input, beta){
+    u <- as.matrix(input)%*%beta
+    expu <- exp(u) 
+    prob <- expu / (1 + expu) 
+    pred <- ifelse(prob >=0.5,1,0)
+    pred.error = mean((as.vector(outcome)-as.vector(pred))^2)
+    return(pred.error)
+}
+# logistic regression by GLM
+log.beta <- c(logit.beta[2:length(logit.beta)],logit.beta[1])
+log.pred <- mean((resp-predict(logfit.1,type="response"))^2) # abs(mean(logfit.1$residuals))
+# newton's method
+newton.ite <- nrow(newres)
+newton.beta <- newres[nrow(newres),3:dim(newres)[2]]
+newton.pred <- pred.fun(resp,newX,newton.beta)
+# gradient decent
+grad.ite <- nrow(gradres)
+grad.beta <- gradres[nrow(gradres),3:dim(gradres)[2]]
+grad.pred <- pred.fun(resp,newX,grad.beta)
+# lasso logistic
+lasso.ite <- nrow(finlasso)
+lasso.beta <- finlasso[nrow(finlasso),3:dim(finlasso)[2]]
+lasso.pred <-  pred.fun(resp,newX,lasso.beta)
+
+perf.res <- matrix(rep(NA),ncol = 2, nrow = 4)
+colnames(perf.res) <- c("iteration times","prediction error")
+rownames(perf.res) <- c("GLM package","Newton Raphson","Gradient Decent","Logistic Lasso")
+perf.res[1,1] <- "NA"
+perf.res[1,2] <- round(log.pred ,2)
+perf.res[2,1] <- newton.ite
+perf.res[2,2] <- round(newton.pred,2)
+perf.res[3,1] <- grad.ite
+perf.res[3,2] <- round(grad.pred,2)
+perf.res[4,1] <- lasso.ite
+perf.res[4,2] <- round(lasso.pred,2)
+
+# output
+kable(t(perf.res), "latex", caption = "The comparison of performance for estimation algorithms and models", booktabs = T) %>% 
+  kable_styling(latex_options = c("hold_position", "scale_down")) %>%
+  add_footnote(c("Dataset: Breast Cancer Diagnosis"),
+               notation = "alphabet") 
 
 ```
+
+
+
+
 
