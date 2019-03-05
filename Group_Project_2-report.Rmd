@@ -80,6 +80,7 @@ resp <- as.vector(ifelse(mydata[,2] == "M", 1, 0))
 
 ### Variable selection
 2. check multicolinearity -one plot
+
 **Figure 1: multicolinearity plot of the dataset**
 
 ```{r}
@@ -239,7 +240,7 @@ gradient <- function(dat, func, start, tol=1e-10,maxiter =200){
     res <- rbind(res, c(i, stuff$loglik, cur))} 
   return(res)
 }
-gradres <- gradient(newdat, logisticstuff, start = rep(0, dim(newdat$X)[2]),maxiter =2000)
+gradres <- gradient(newdat, logisticstuff, start = rep(0, dim(newdat$X)[2]),maxiter =200)
 # check convergence
 check <- tail(gradres)[,1:2]
 grad.beta <- gradres[nrow(gradres),3:dim(gradres)[2]]
@@ -322,7 +323,7 @@ path.plot
 ### Cross validation for lasso
 one plot for beta
 one plot for lambda
-```{r}
+
 ```{r}
 ##### 5-fold cross-validation and pathwise coordinatewise optimization algorithm
 # when lambda = 0.5, all the betas go to 0
@@ -367,11 +368,10 @@ cv.plot <-
                   colour=1) +
     geom_line() +
     geom_point(size=1,colour = 4) +
-    ggtitle("Figure 2: Lasso regression by 5 fold cross validation")+
+    ggtitle("Figure 3: Lasso regression by 5 fold cross validation")+
     xlab("Lambda") + ylab("CV error") +
     geom_vline(xintercept = best.lambda,col=3,lty=3)
 cv.plot
-```
 ```
 
 
@@ -403,6 +403,9 @@ lasso.ite <- nrow(finlasso)
 lasso.beta <- finlasso[nrow(finlasso),3:dim(finlasso)[2]]
 lasso.pred <-  pred.fun(resp,newX,lasso.beta)
 
+beta.res <- round(as.matrix(rbind(log.beta,newton.beta,grad.beta,lasso.beta)),2)
+colnames(beta.res) <- colnames(newX)
+rownames(beta.res) <- c("GLM package","Newton Raphson","Gradient Decent","Logistic Lasso")
 perf.res <- matrix(rep(NA),ncol = 2, nrow = 4)
 colnames(perf.res) <- c("iteration times","prediction error")
 rownames(perf.res) <- c("GLM package","Newton Raphson","Gradient Decent","Logistic Lasso")
@@ -415,11 +418,17 @@ perf.res[3,2] <- round(grad.pred,2)
 perf.res[4,1] <- lasso.ite
 perf.res[4,2] <- round(lasso.pred,2)
 
-# output
+# output-performace
 kable(t(perf.res), "latex", caption = "The comparison of performance for estimation algorithms and models", booktabs = T) %>% 
   kable_styling(latex_options = c("hold_position", "scale_down")) %>%
   add_footnote(c("Dataset: Breast Cancer Diagnosis"),
                notation = "alphabet") 
+ 
+# output-beta
+kable(t(beta.res), "latex", caption = "The comparison of performance for estimation algorithms and models", booktabs = T) %>% 
+  kable_styling(latex_options = c("hold_position", "scale_down")) %>%
+  add_footnote(c("Dataset: Breast Cancer Diagnosis"),
+               notation = "alphabet")               
 
 ```
 
