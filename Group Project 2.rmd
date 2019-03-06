@@ -240,7 +240,7 @@ coordinatelasso <- function(lambda, dat, start, tol=1e-10, maxiter = 200) {
     prev <- betavec
     for (j in 1:pp){
       ynoj <- dat$X[,-j] %*% betavec[-j]
-      betavec[j] <- sfun(sum(w*(dat$X[,j])*(dat$y - ynoj))/(sum(w*(dat$X[,j])^2)), lambda)
+      betavec[j] <- sfun(sum(w*(dat$X[,j])*(dat$y - ynoj)), lambda)/(sum(w*(dat$X[,j])^2))
     }
     u <- dat$X %*% betavec
     expu <- exp(u) 

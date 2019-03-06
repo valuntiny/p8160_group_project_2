@@ -63,7 +63,7 @@ The data \textit{breast-cancer.csv} have 569 row and 33 columns. The first colum
 
 ```{r}
 ###### data manipulation
-setwd("/Users/yujingyao/Desktop/")
+#setwd("/Users/yujingyao/Desktop/")
 mydata <- read.csv("breast-cancer-1.csv") 
 n <- dim(mydata)[1]
 p <- dim(mydata)[2]
@@ -79,6 +79,7 @@ resp <- as.vector(ifelse(mydata[,2] == "M", 1, 0))
 ```
 
 ### Variable selection
+
 2. check multicolinearity -one plot
 
 **Figure 1: multicolinearity plot of the dataset**
