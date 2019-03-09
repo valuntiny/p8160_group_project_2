@@ -36,6 +36,7 @@ library(ggcorrplot) # for correlation heatmap
 library(ggpubr) # common legend
 library(matrixcalc) #is.negative.def
 library(kableExtra) # table
+library(glmnet)
 set.seed(99999)
 options(knitr.table.format = "latex")
 ```
@@ -126,7 +127,7 @@ selection <- function(data,eigen.tol,corr.tol){
        data <- temp[,-(which(round(abs(cor(temp)),3) == max.corr(temp),arr.ind = TRUE)[1,1])]
       }
   return(data)}
-newdataX <- selection(dataX, eigen.tol=1e-2,corr.tol = 0.8)
+newdataX <- selection(dataX, eigen.tol=2e-2,corr.tol = 0.7)
 g2 <- colinearity.plot(newdataX)
 eigpost <- eigen(cor(newdataX))$values
 # look at the difference of the deleted colums
@@ -247,46 +248,43 @@ grad.beta <- gradres[nrow(gradres),3:dim(gradres)[2]]
 problem 3&4 
 ```{r}
 ##### 3. coordinate-wise logistic lasso
-sfun <- function(beta,lambda) sign(beta) * max((abs(beta) - lambda), 0)
-coordinatelasso <- function(lambda, dat, start, tol=1e-10, maxiter = 200) {
+sfun <- function(beta,lambda) sign(beta) * max(abs(beta)-lambda, 0)
+coordinatelasso <- function(lambda, dat, s, tol=1e-10, maxiter = 200){
   i <- 0 
-  pp <- length(start)
+  pp <- length(s)
   n <- length(dat$y)
-  betavec <- start 
-  u <- (dat$X) %*% betavec
-  expu <- exp(u) 
-  prob <- expu/(expu+1)
-  # weighted updates
-  w <- prob*(1-prob)
-  z <- u + ifelse(is.nan((dat$y-prob)/w),0,(dat$y-prob)/w) # some value with w=0, NaN
-  # quardratic approximation to the log likelihood difference is constant(beta), had to be convex
-  loglik <- 1/2*(1/n)*sum(w*(z-u)^2) + sum(lambda * abs(betavec[-pp])) # doesnot penalty intercept
+  betavec <- s
+  loglik <- 1e6
   res <- c(0, loglik, betavec)
-  prevloglik <- -Inf # To make sure it iterates 
-  while(i < maxiter && abs(loglik - prevloglik) > tol && loglik > -Inf) {
+  prevloglik <- Inf # To make sure it iterates 
+  while(i < maxiter && abs(loglik - prevloglik) > tol && loglik < Inf) {
     i <- i + 1 
     prevloglik <- loglik
-    for (j in 1:pp){
+    for (j in 1: pp){
       u <- dat$X %*% betavec
       expu <- exp(u) 
       prob <- expu/(expu+1)
-      # weighted updates
       w <- prob*(1-prob)
-      z <- u + ifelse(is.nan((dat$y-prob)/w),0,(dat$y-prob)/w)
-      ynoj <- dat$X[,-j] %*% betavec[-j]
-      betavec[j] <- sfun(sum(w*(dat$X[,j])*(dat$y - ynoj)), lambda)/(sum(w*(dat$X[,j])^2))
+      # avoid coeffcients diverging in order to achieve fitted  probabilities of 0 or 1.
+      w <- ifelse(abs(w-0)<1e-5,1e-5,w)
+      z <- u + (dat$y-prob)/w
+      # calculate noj
+      znoj <- dat$X[,-j] %*% betavec[-j]
+      # revise the formula to be z
+      betavec[j] <- sfun(mean(w*(dat$X[,j])*(z - znoj)), lambda)/(mean(w*dat$X[,j]*dat$X[,j]))
     }
-    # quardratic approximation to the log likelihood
-    loglik <- 1/2*(1/n)*sum(w*(z-u)^2) + sum(lambda * abs(betavec[-pp]))
+    loglik <- sum(w*(z-dat$X %*% betavec)^2)/(2*n) + lambda * sum(abs(betavec))
     res <- rbind(res, c(i, loglik, betavec))}  
   return(res)
 }
-corres <- coordinatelasso(lambda = exp(4), newdat, start = rep(0, dim(newdat$X)[2]),maxiter = 200)
-# largest lambda: 60
+corres <- coordinatelasso(lambda = exp(-8e-1), newdat, s = rep(0, dim(newdat$X)[2]) ,maxiter = 2000)
 check <- tail(corres)[,1:2]
 cor.beta <- corres[nrow(corres),3:dim(corres)[2]]
-library(glmnet)
-# logmod <- glmnet(newdat$X[,-dim(newdat$X)[2]], y=newdat$y, alpha=1, family="binomial",lambda = 0.01)
+logmod <- glmnet(newdat$X[,-dim(newdat$X)[2]], y=newdat$y, alpha=1, family="binomial",lambda=1e-2)
+# check: coef.glmnet(logmod)
+logmod <- cv.glmnet(newdat$X[,-dim(newdat$X)[2]], y=newdat$y, alpha=1, family="binomial",type.measure="mse")
+# check: plot(logmod)
+# check: logmod$lambda.min
 ```
 
 ## Results
@@ -301,14 +299,14 @@ path <- function(inputx,inputy,grid){
   cv.errors <- vector()
     cor.result <- coordinatelasso(lambda = grid[x], 
                                   dat = list(X=as.matrix(inputx),y=inputy),
-                                  start= start)
+                                  s= start)
     lasbeta <- cor.result[nrow(cor.result),3:dim(cor.result)[2]]
     start <- lasbeta
     betas <- rbind(betas,c(lasbeta))
   }
   return(data.frame(cbind(grid,betas)))
 }
-path.out <- path(newX,resp,grid=exp(seq(5,-5, length=100)))
+path.out <- path(newX,resp,grid=exp(seq(-8e-1,-8, length=100)))
 colnames(path.out) <- c("grid",colnames(newdataX),"the intercept")
 # plot a path of solutions
 path.plot <- path.out %>%
@@ -334,18 +332,18 @@ cvresult <- function(inputx,inputy,grid,K){
   start <- rep(0, dim(inputx)[2])
   cv.error <- vector()
   cv.se <- vector()
-  for (x in 1:100) {
+  for (x in 1:length(grid)) {
   cv.errors <- vector()
   for (i in 1:K){
     cor.result <- coordinatelasso(lambda = grid[x], 
                                   dat = list(X=as.matrix(inputx[folds!=i,]),y=inputy[folds!=i]),
-                                  start= start)
+                                  s = start)
     lasbeta <- cor.result[nrow(cor.result),3:dim(cor.result)[2]]
     u <- as.matrix(inputx[folds==i,])%*%lasbeta
     expu <- exp(u) 
     prob <- expu / (1 + expu) 
-    pred <- ifelse(prob > 0.5,1,0)
-    cv.errors[i] = mean((as.vector(inputy[folds==i])-as.vector(pred))^2) # MSE
+    y <- as.vector(inputy[folds==i])
+    cv.errors[i] = mean((y-prob)^2) #MSE
     start <- lasbeta
   }
   cv.error[x] <- mean(cv.errors)
@@ -354,12 +352,12 @@ cvresult <- function(inputx,inputy,grid,K){
   return(cbind(grid,cv.error,cv.se))
 }
 
-result <- cvresult(newX,resp,grid=exp(seq(5,-5, length=100)),K=5)
+result <- cvresult(newX,resp,grid=exp(seq(-8e-1,-8, length=100)),K=5)
 # result <- cvresult(X,resp,grid=seq(0.5, 1e-2, length=100),K=5)
 best.lambda <- result[which.min(result[,2]),1]
-finlasso <- coordinatelasso(lambda = best.lambda, newdat, start = rep(0, dim(newdat$X)[2]))
-check <- tail(finlasso)[,1:2]
-lasso.beta <- finlasso[nrow(finlasso),3:dim(finlasso)[2]]
+# need rewrite
+finlasso <- as.matrix(path(newX,resp,grid=exp(seq(-8e-1,log(best.lambda), length=100))))
+lasso.beta <- finlasso[nrow(finlasso),2:dim(finlasso)[2]]
 
 # plot for cross validation
 result <- data.frame(result)
@@ -368,7 +366,7 @@ cv.plot <-
     geom_errorbar(aes(ymin=result$cv.error-result$cv.se, ymax=result$cv.error+result$cv.se),
                   colour=1) +
     geom_line() +
-    geom_point(size=1,colour = 4) +
+    geom_point(size=0.8,colour = 4) +
     ggtitle("Figure 3: Lasso regression by 5 fold cross validation")+
     xlab("log(Lambda)") + ylab("CV error") +
     geom_vline(xintercept = log(best.lambda),col=3,lty=3)
@@ -384,13 +382,13 @@ pred.fun <- function(outcome,input, beta){
     u <- as.matrix(input)%*%beta
     expu <- exp(u) 
     prob <- expu / (1 + expu) 
-    pred <- ifelse(prob > 0.5,1,0)
-    pred.error = mean((as.vector(outcome)-as.vector(pred))^2)
+    pred.error = mean((as.vector(outcome)-prob)^2)
     return(pred.error)
 }
 # logistic regression by GLM
 log.beta <- c(logit.beta[2:length(logit.beta)],logit.beta[1])
-log.pred <- mean((resp-predict(logfit.1,type="response"))^2) # abs(mean(logfit.1$residuals))
+pred <- predict(logfit.1)
+log.pred <- mean((resp-exp(pred)/(1+exp(pred)))^2) # abs(mean(logfit.1$residuals))
 # newton's method
 newton.ite <- nrow(newres)
 newton.beta <- newres[nrow(newres),3:dim(newres)[2]]
@@ -401,7 +399,7 @@ grad.beta <- gradres[nrow(gradres),3:dim(gradres)[2]]
 grad.pred <- pred.fun(resp,newX,grad.beta)
 # lasso logistic
 lasso.ite <- nrow(finlasso)
-lasso.beta <- finlasso[nrow(finlasso),3:dim(finlasso)[2]]
+lasso.beta <- lasso.beta
 lasso.pred <-  pred.fun(resp,newX,lasso.beta)
 
 beta.res <- round(as.matrix(rbind(log.beta,newton.beta,grad.beta,lasso.beta)),2)
@@ -432,8 +430,6 @@ kable(t(beta.res), "latex", caption = "The comparison of performance for estimat
                notation = "alphabet")               
 
 ```
-
-
 
 
 
