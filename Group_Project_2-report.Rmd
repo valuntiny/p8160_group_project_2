@@ -83,7 +83,9 @@ resp <- as.vector(ifelse(mydata[,2] == "M", 1, 0))
 
 There exists multicollinearity within the dataset (\textbf{Fig. 1A}), which will casue the correlation matrix to be singular and irreversible. We proposed a method to reduce this multicollinearity by deleting some variables. The chosen criterion is based on both correlation coefficient and eigen value of correlation matrix, that is, the column with high correlation with other columns (e.g., larger than 0.7) and low eigen value (e.g., less than 0.01) will be deleted.
 
-```{r, dpi = 300}
+\textbf{Figure 1: multicollinearity plot of the dataset}
+
+```{r}
 ###### plot to check collinearity
 colnames(dataX) <- namesX
 colinearity.plot <- function(data){
@@ -132,7 +134,6 @@ eigpost <- eigen(cor(newdataX))$values
 delnames <- setdiff(colnames(dataX),colnames(newdataX))
 ggarrange(g1,g2, ncol=2, nrow=1, common.legend = TRUE, legend = "bottom", labels = "AUTO")
 ```
-\textbf{Figure 1: multicollinearity plot of the dataset}
 
 ### Final input of model
 
@@ -156,7 +157,7 @@ $$
 
 ```{r}
 ###### 0.logistic regression
-logfit.0 <- glm(resp~dataX, family = binomial(link = "logit"))
+# logfit.0 <- glm(resp~dataX, family = binomial(link = "logit"))
 # algorithm didn't converge without delete colinearity
 logdata <- cbind.data.frame(resp,newdataX)
 logfit.1 <- glm(resp~., family = binomial(link = "logit"),data = logdata)
@@ -164,7 +165,7 @@ logit.beta <- coef(logfit.1)
 ```
 
 
-### Newton Raphson
+### Modified Newton-Raphson Algorithm with Step Halving
 
 The likelihood of logistic regression is:
 $$L(\beta; X, y) = \prod_{i=1}^n \{(\frac{\exp(X_{i}\beta)}{1+\exp(X_{i}\beta)})^{y_i}(\frac{1}{1+\exp(X_{i}\beta)})^{1-y_i}\}$$
@@ -195,8 +196,10 @@ $$
 $$
 and the next “current point” is set to be the solution
 $$
-\beta_{i+1} = \beta_{i} - [\nabla^2 f(\beta_{i})]^{-1}\nabla f(\beta_{i})
+\beta_{i+1}(\lambda) = \beta_{i} - \lambda[\nabla^2 f(\beta_{i})]^{-1}\nabla f(\beta_{i})
 $$
+Then compute the full Newton-Raphson step, corresponding to $\lambda = 1$. If $f(\theta_{i+1}(1)) \geq f(\theta_{i})$, then set $\theta_{i+1} = \theta_{i+1}(1)$ and go on to the next iteration. Otherwise, search for a value $\lambda \in (0,1)$ for which $f(\theta_{i+1}(\lambda)) \geq f(\theta_{i})$, set $\theta_{i+1} = \theta_{i+1}(\lambda)$ and go on to the next iteration.
+
 The algorithm continues like this iteratively choosing a sequence of points $\beta_{0}, \beta_{1},...,\beta_{i},...$ until convergence is achieved.
 
 ```{r}
@@ -224,18 +227,15 @@ NewtonRaphson <- function(dat, func, start, tol=1e-10, maxiter =200){
     i <- i + 1 
     prevloglik <- stuff$loglik 
     prev <- cur 
-    cur <- prev - solve(stuff$Hess) %*% stuff$grad
-    # # step halving
-    #     lambda <- 1
-    #     curtemp <- prev - solve(stuff$Hess) %*% stuff$grad 
-    #     while(func(dat, curtemp)$loglik <= func(dat,prev)$loglik){
-    #       lambda <- lambda*(1/2)
-    #       curtemp <- prev - solve(stuff$Hess) %*% stuff$grad
-    #     }
-    #     cur <- curtemp
-    # # step halving
+    lambda = 0
+    cur <- prev - ((1/(2^lambda)) * solve(stuff$Hess)) %*% stuff$grad
+    while (func(dat, cur)$loglik < prevloglik) { # step-halving
+      lambda = lambda + 1
+      cur <- prev - ((1/(2^lambda)) * solve(stuff$Hess)) %*% stuff$grad
+    }
     stuff <- func(dat, cur) 
     res <- rbind(res, c(i, stuff$loglik, cur))}
+  
   return(res)
 }
 newres <- NewtonRaphson(newdat,logisticstuff, start = rep(0, dim(newdat$X)[2]))
@@ -244,8 +244,7 @@ check <- tail(newres)[,1:2]
 newton.beta <- newres[nrow(newres),3:dim(newres)[2]]
 ```
 
-
-### Gradient Decent
+### Newton Raphson with Gradient Decent Update
 
 For Newton's method with a large $p$, the computational burden in calculating the inverse of the Hessian Matrix $[\nabla^2 f(\beta_{i})]^{-1}$ increases quickly with $p$. One can update
 $$
@@ -255,12 +254,12 @@ This is easy to compute, but could slow in convergence.
 
 ```{r}
 ##### 2. gradient descent
-gradient <- function(dat, func, start, tol=1e-10,maxiter =200){ 
+gradient <- function(dat, func, start, tol=1e-10, maxiter = 200){ 
   i <- 0 
   cur <- start 
   pp <- length(start)
   stuff <- func(dat, cur) 
-  hessinversed <- solve(t(dat$X)%*%(dat$X))# double check
+  hessinversed <- solve(t(dat$X) %*% (dat$X))# double check
   res <- c(0, stuff$loglik, cur)
   prevloglik <- -Inf
   while (i < maxiter && abs(stuff$loglik - prevloglik) > tol && stuff$loglik > -Inf) { 
@@ -272,13 +271,13 @@ gradient <- function(dat, func, start, tol=1e-10,maxiter =200){
     res <- rbind(res, c(i, stuff$loglik, cur))} 
   return(res)
 }
-gradres <- gradient(newdat, logisticstuff, start = rep(0, dim(newdat$X)[2]),maxiter =1000)
+gradres <- gradient(newdat, logisticstuff, start = rep(0, dim(newdat$X)[2]), maxiter = 1000)
 # check convergence
 check <- tail(gradres)[,1:2]
 grad.beta <- gradres[nrow(gradres),3:dim(gradres)[2]]
 ```
 
-### Coordinate-wise descent LASSO
+### Coordinate-wise descent LASSO with weighted updates
 
 Regularization is the common variable selection approaches for high-dimensional covariates. The best known Regularization is called LASSO. In linear regression, LASSO minimize
 $$
@@ -296,12 +295,18 @@ f(\beta_{j}) = \frac{1}{2}\sum_{i=1}^{n}(y_{i} - \sum_{k \neq j}x_{i,k}\tilde{\b
 $$
 Minimize $f(\beta_{j})$ w.r.t. $\beta_{j}$ while having $\tilde{\beta_{k}}$ fixed, we have
 $$
-\tilde{\beta}^{lasso}_{j}(\gamma) = S(\sum_{i=1}^{n}x_{i,j}(y_{i} - \tilde{y_{i}}^{(-j)}), \gamma)
+\tilde{\beta}^{lasso}_{j}(\gamma) \leftarrow S(\sum_{i=1}^{n}x_{i,j}(y_{i} - \tilde{y_{i}}^{(-j)}), \gamma)
 $$
-where $\tilde{y_{i}}^{(-j)} = \sum_{k \neq j}x_{i,k}\tilde{\beta_{k}}$
+where $\tilde{y_{i}}^{(-j)} = \sum_{k \neq j}x_{i,k}\tilde{\beta_{k}}$.
+
+A weight $\omega_{i}$ is then associated with each observation. In this case the update becomes only slightly more complicated:
+$$
+\tilde{\beta}^{lasso}_{j}(\gamma) \leftarrow \frac{S(\sum_{i=1}^{n}\omega_{i}x_{i,j}(y_{i} - \tilde{y_{i}}^{(-j)}), \gamma)}{\sum_{i}\omega_{i}x_{i,j}^{2}}
+$$
 
 ```{r}
 ##### 3. coordinate-wise logistic lasso
+
 sfun <- function(beta,lambda) sign(beta) * max(abs(beta)-lambda, 0)
 coordinatelasso <- function(lambda, dat, s, tol=1e-10, maxiter = 200){
   i <- 0 
@@ -311,16 +316,16 @@ coordinatelasso <- function(lambda, dat, s, tol=1e-10, maxiter = 200){
   loglik <- 1e6
   res <- c(0, loglik, betavec)
   prevloglik <- Inf # To make sure it iterates 
-  while(i < maxiter && abs(loglik - prevloglik) > tol && loglik < Inf) {
+  while (i < maxiter && abs(loglik - prevloglik) > tol && loglik < Inf) {
     i <- i + 1 
     prevloglik <- loglik
-    for (j in 1: pp){
+    for (j in 1:pp) {
       u <- dat$X %*% betavec
       expu <- exp(u) 
       prob <- expu/(expu+1)
-      w <- prob*(1-prob)
+      w <- prob*(1-prob) # weighted
       # avoid coeffcients diverging in order to achieve fitted  probabilities of 0 or 1.
-      w <- ifelse(abs(w-0)<1e-5,1e-5,w)
+      w <- ifelse(abs(w-0) < 1e-5, 1e-5, w)
       z <- u + (dat$y-prob)/w
       # calculate noj
       znoj <- dat$X[,-j] %*% betavec[-j]
@@ -342,9 +347,12 @@ logmod <- cv.glmnet(newdat$X[,-dim(newdat$X)[2]], y=newdat$y, alpha=1, family="b
 ```
 
 ## Results
-### Eestimation path for Lasso
 
-```{r}
+### Estimation path for Lasso
+
+\textbf{Fig. 2} shows us that as the $\lambda$ increases, all the variable parameters shrink accordingly. When $\lambda = 0$, the result is the same as Least Square method and when $\lambda$ is too large, all the  parameters shrink to 0.
+
+```{r, dpi = 300}
 # impletement the pathwise coordinatewise optimization algorithm to obtain a path of solutions
 path <- function(inputx,inputy,grid){
   start <- rep(0, dim(inputx)[2])
@@ -367,17 +375,15 @@ path.plot <- path.out %>%
   gather(key = par, value = estimate, c(2:dim(path.out)[2])) %>% 
   ggplot(aes(x = log(grid), y = estimate, group = par, col = par)) +
   geom_line()+
-  ggtitle("Figure 2: a path of solutions with a sequence of descending lambda's") +
+  ggtitle("Figure 2: A path of solutions with a sequence of descending lambda's") +
   xlab("log(Lambda)") + 
   ylab("Estimate") +
-  theme(legend.position = "bottom")
+  theme(legend.position = "bottom", 
+        legend.text = element_text(size = 5))
 path.plot
 ```
 
-
 ### Cross validation for lasso
-one plot for beta
-one plot for lambda
 
 ```{r}
 ##### 5-fold cross-validation and pathwise coordinatewise optimization algorithm
@@ -395,7 +401,7 @@ cvresult <- function(inputx,inputy,grid,K){
                                   dat = list(X=as.matrix(inputx[folds!=i,]),y=inputy[folds!=i]),
                                   s = start)
     lasbeta <- cor.result[nrow(cor.result),3:dim(cor.result)[2]]
-    u <- as.matrix(inputx[folds==i,])%*%lasbeta
+    u <- as.matrix(inputx[folds == i,]) %*% lasbeta
     expu <- exp(u) 
     prob <- expu / (1 + expu) 
     y <- as.vector(inputy[folds==i])
@@ -424,23 +430,29 @@ cv.plot <-
     geom_line() +
     geom_point(size=0.8,colour = 4) +
     ggtitle("Figure 3: Lasso regression by 5 fold cross validation")+
-    xlab("log(Lambda)") + ylab("CV error") +
-    geom_vline(xintercept = log(best.lambda),col=3,lty=3)
+    xlab("log(Lambda)") + ylab("MSE") +
+    geom_vline(xintercept = log(best.lambda),col=3,lty=3) +
+    annotate("text", log(best.lambda), 0.1, label = paste("best log(lambda) = ", round(log(best.lambda), 3), sep = ""))
+  
 cv.plot
 ```
 
+When using 5-fold cross-validation, we calculate the mean squared error (MSE) and its $\pm1\sigma^{2}$ interval as the output. \textbf{Fig. 3} shows us that the $lambda$ with the lowest MSE is `r round(as.numeric(best.lambda), 5)`.
 
 ### Model comparison
-comparison table 
+
+We finally compared these four methods: Classic Logistic Regression (GLM package), Modified Newton-Raphson Algorithm with Step Halving (Newton Raphson), Newton Raphson with Gradient Decent Update (Gradient Decent) and Coordinate-wise descent LASSO with weighted updates (Logistic Lasso). \textbf{Table 1} shows the MSE and iteration time they need to converge: Newton Raphson method needs the lowest iteration times while Gradient Decent method needs more than 1000 times to converge. \textbf{Table 2} shows the final parameter estimation calculated by these four methods. Newton Raphson got the exact same results as the build-in GLM, which proved the validity of our algorithm. And the Gradient Decent result is similar to Newton Raphson. With the best $\lambda$, Lasso results in turning 6 parameters to 0.
+
 ```{r}
 ######## compare prediction performance of all results
 pred.fun <- function(outcome,input, beta){
-    u <- as.matrix(input)%*%beta
+    u <- as.matrix(input) %*% beta
     expu <- exp(u) 
     prob <- expu / (1 + expu) 
     pred.error = mean((as.vector(outcome)-prob)^2)
     return(pred.error)
 }
+
 # logistic regression by GLM
 log.beta <- c(logit.beta[2:length(logit.beta)],logit.beta[1])
 pred <- predict(logfit.1)
@@ -462,7 +474,7 @@ beta.res <- round(as.matrix(rbind(log.beta,newton.beta,grad.beta,lasso.beta)),2)
 colnames(beta.res) <- colnames(newX)
 rownames(beta.res) <- c("GLM package","Newton Raphson","Gradient Decent","Logistic Lasso")
 perf.res <- matrix(rep(NA),ncol = 2, nrow = 4)
-colnames(perf.res) <- c("iteration times","prediction error")
+colnames(perf.res) <- c("iteration times","MSE")
 rownames(perf.res) <- c("GLM package","Newton Raphson","Gradient Decent","Logistic Lasso")
 perf.res[1,1] <- "NA"
 perf.res[1,2] <- round(log.pred ,2)
@@ -483,12 +495,9 @@ kable(t(perf.res), "latex", caption = "The comparison of performance for estimat
 kable(t(beta.res), "latex", caption = "The comparison of performance for estimation algorithms and models", booktabs = T) %>% 
   kable_styling(latex_options = c("hold_position", "scale_down")) %>%
   add_footnote(c("Dataset: Breast Cancer Diagnosis"),
-               notation = "alphabet")               
+               notation = "alphabet")            
 
 ```
-
-
-
 
 ## Conclusions
 
