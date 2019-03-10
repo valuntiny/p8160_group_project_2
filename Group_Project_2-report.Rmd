@@ -83,7 +83,7 @@ resp <- as.vector(ifelse(mydata[,2] == "M", 1, 0))
 
 There exists multicollinearity within the dataset (\textit{Fig. 1A}), which will casue the correlation matrix to be singular and irreversible. We proposed a method to reduce this multicollinearity by deleting some variables. The chosen criterion is based on both correlation coefficient and eigen value of correlation matrix, that is, the column with high correlation with other columns (e.g., larger than 0.7) and low eigen value (e.g., less than 0.01) will be deleted.
 
-```{r}
+```{r, dpi = 300}
 ###### plot to check collinearity
 colnames(dataX) <- namesX
 colinearity.plot <- function(data){
@@ -136,13 +136,36 @@ ggarrange(g1,g2, ncol=2, nrow=1, common.legend = TRUE, legend = "bottom", labels
 
 ### Final input of model
 
-There were 18 variables left as final input predictors (except for \textbf{Lasso} model), \textit{Fig. 1B} shows the correlation matrix.
+There were 18 variables left as final input predictors (except for \textbf{Lasso} model), \textit{Fig. 1B} shows the correlation matrix after deletion.
 
 ## Method
 
 ### Logistic Regression
 
 Let $y$ be the vector $n$ response random variable, $X$ denote the $n\times p$ design matrix(let$X_{i}$ denote the $i$th row) and $\beta$ denote the $p\times 1$ coefficient.
+$$
+\begin{split}
+y \sim Bin(n, p) \\
+g(E(y)) = X\beta
+\end{split}
+$$
+Given the link function as 
+$$
+g(\eta) = log\frac{\eta}{1-\eta}
+$$
+
+```{r}
+###### 0.logistic regression
+logfit.0 <- glm(resp~dataX, family = binomial(link = "logit"))
+# algorithm didn't converge without delete colinearity
+logdata <- cbind.data.frame(resp,newdataX)
+logfit.1 <- glm(resp~., family = binomial(link = "logit"),data = logdata)
+logit.beta <- coef(logfit.1)
+```
+
+
+### Newton Raphson
+
 The likelihood of logistic regression is:
 $$L(\beta; X, y) = \prod_{i=1}^n \{(\frac{\exp(X_{i}\beta)}{1+\exp(X_{i}\beta)})^{y_i}(\frac{1}{1+\exp(X_{i}\beta)})^{1-y_i}\}$$
 Maximizing the likelihood is equivalent to maximizing the log likelihood:
@@ -160,17 +183,22 @@ The Hessian is given by:
 $$\nabla^2 f(\beta) = -X^T W X$$ where $W = diag(p_i(1-p_i)), i=1,\cdots,n$
 Hessian matrix is negative definite, well behaved.
 
-```{r}
-###### 0.logistic regression
-logfit.0 <- glm(resp~dataX, family = binomial(link = "logit"))
-# algorithm didn't converge without delete colinearity
-logdata <- cbind.data.frame(resp,newdataX)
-logfit.1 <- glm(resp~., family = binomial(link = "logit"),data = logdata)
-logit.beta <- coef(logfit.1)
-```
+The above can be regarded as a method to search for solutions to the system of nonlinear equations $\nabla f(\beta) = 0$.
 
+At each step, given the current point $\beta_{i}$, the gradient $\nabla f(\beta)$ for $\beta$ near $\beta_{i}$ may be approximated by
+$$
+\nabla f(\beta_{i}) + \nabla^2 f(\beta_{i})(\beta - \beta_{i})
+$$
+which defines the plane tangent to $\nabla f(\beta)$ at $\beta_{i}$. The next step in the algorithm is determined by solving the system of linear equations
+$$
+\nabla f(\beta_{i}) + \nabla^2 f(\beta_{i})(\beta - \beta_{i}) = 0
+$$
+and the next “current point” is set to be the solution
+$$
+\beta_{i+1} = \beta_{i} - [\nabla^2 f(\beta_{i})]^{-1}\nabla f(\beta_{i})
+$$
+The algorithm continues like this iteratively choosing a sequence of points $\beta_{0}, \beta_{1},...,\beta_{i},...$ until convergence is achieved.
 
-### Newton Raphson
 ```{r}
 ##### 1. classical newton raphson
 newX <- data.frame(newdataX) %>%
@@ -185,6 +213,7 @@ logisticstuff <- function(dat, betavec){
   grad <- t(dat$X) %*% (dat$y - prob)
   Hess <- -t(dat$X) %*% diag(as.vector(prob*(1 - prob))) %*% dat$X # Hessian at betavec
   return(list(loglik = loglik, grad = grad, Hess = Hess))}
+
 NewtonRaphson <- function(dat, func, start, tol=1e-10, maxiter =200){ 
   i <- 0 
   cur <- start 
@@ -311,8 +340,10 @@ path.plot <- path.out %>%
   gather(key = par, value = estimate, c(2:dim(path.out)[2])) %>% 
   ggplot(aes(x = log(grid), y = estimate, group = par, col = par)) +
   geom_line()+
-  ggtitle("Figure 2: a path of solutions with a sequence of descending lambda's")+
-  xlab("log(Lambda)") + ylab("Estimate") 
+  ggtitle("Figure 2: a path of solutions with a sequence of descending lambda's") +
+  xlab("log(Lambda)") + 
+  ylab("Estimate") +
+  theme(legend.position = "bottom")
 path.plot
 ```
 
