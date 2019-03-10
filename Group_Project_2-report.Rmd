@@ -39,6 +39,7 @@ library(kableExtra) # table
 library(glmnet)
 set.seed(99999)
 options(knitr.table.format = "latex")
+theme_set(theme_bw())
 ```
 
 ## Background
@@ -64,7 +65,6 @@ The data \textit{breast-cancer.csv} have 569 row and 33 columns. The first colum
 
 ```{r}
 ###### data manipulation
-#setwd("/Users/yujingyao/Desktop/")
 mydata <- read.csv("breast-cancer-1.csv") 
 n <- dim(mydata)[1]
 p <- dim(mydata)[2]
@@ -81,13 +81,11 @@ resp <- as.vector(ifelse(mydata[,2] == "M", 1, 0))
 
 ### Variable selection
 
-2. check multicolinearity -one plot
-
-**Figure 1: multicolinearity plot of the dataset**
+There exists multicollinearity within the dataset (\textit{Fig. 1A}), which will casue the correlation matrix to be singular and irreversible. We proposed a method to reduce this multicollinearity by deleting some variables. The chosen criterion is based on both correlation coefficient and eigen value of correlation matrix, that is, the column with high correlation with other columns (e.g., larger than 0.7) and low eigen value (e.g., less than 0.01) will be deleted.
 
 ```{r}
 ###### plot to check collinearity
-colnames(dataX) <-namesX
+colnames(dataX) <- namesX
 colinearity.plot <- function(data){
   data.frame(data) %>% 
   select(starts_with("radius"), 
@@ -109,36 +107,36 @@ g1 <- colinearity.plot(dataX)
 ###### variable selection
 eig <- eigen(cor(dataX))$values
 # found values very close to 0, multicolinearity exists
-# function: find the maximum correlation between i and j
+# function: find the maximum correlation between i and j, at least 0.5
 max.corr <- function(data){
   len = dim(data)[2]
   a <- 0.5
   for (i in 1:(len-1)) {
     for (j in (i+1):len) {
-      if(abs(cor(data[,i],data[,j]))> a) a <- cor(data[,i],data[,j])
+      if (abs(cor(data[,i],data[,j])) > a) a <- cor(data[,i],data[,j])
     }
   }
   return(round(a,3))
 }
-# function: update dataset according to several rules:eigenvalues and corr
-selection <- function(data,eigen.tol,corr.tol){
-  while (min(eigen(cor(data))$values) <= eigen.tol & max.corr(data) >= corr.tol){
+# function: update dataset according to several rules: eigenvalues and corr
+selection <- function(data, eigen.tol, corr.tol) {
+  while (min(eigen(cor(data))$values) <= eigen.tol & max.corr(data) >= corr.tol) {
        temp <- data
-       data <- temp[,-(which(round(abs(cor(temp)),3) == max.corr(temp),arr.ind = TRUE)[1,1])]
+       data <- temp[,-(which(round(abs(cor(temp)),3) == max.corr(temp), arr.ind = TRUE)[1,1])]
       }
   return(data)}
-newdataX <- selection(dataX, eigen.tol=2e-2,corr.tol = 0.7)
+newdataX <- selection(dataX, eigen.tol = 2e-2, corr.tol = 0.7)
 g2 <- colinearity.plot(newdataX)
 eigpost <- eigen(cor(newdataX))$values
 # look at the difference of the deleted colums
 delnames <- setdiff(colnames(dataX),colnames(newdataX))
-ggarrange(g1,g2, ncol=2, nrow=1, common.legend = TRUE, legend="bottom")
+ggarrange(g1,g2, ncol=2, nrow=1, common.legend = TRUE, legend = "bottom", labels = "AUTO")
 ```
+\textbf{Figure 1: multicollinearity plot of the dataset**}
 
+### Final input of model
 
-3. report final input of model - descripive mean(sd)
-
-
+There were 18 variables left as final input predictors (except for \textbf{Lasso} model), \textit{Fig. 1B} shows the correlation matrix.
 
 ## Method
 
