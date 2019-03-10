@@ -81,7 +81,7 @@ resp <- as.vector(ifelse(mydata[,2] == "M", 1, 0))
 
 ### Variable selection
 
-There exists multicollinearity within the dataset (\textit{Fig. 1A}), which will casue the correlation matrix to be singular and irreversible. We proposed a method to reduce this multicollinearity by deleting some variables. The chosen criterion is based on both correlation coefficient and eigen value of correlation matrix, that is, the column with high correlation with other columns (e.g., larger than 0.7) and low eigen value (e.g., less than 0.01) will be deleted.
+There exists multicollinearity within the dataset (\textbf{Fig. 1A}), which will casue the correlation matrix to be singular and irreversible. We proposed a method to reduce this multicollinearity by deleting some variables. The chosen criterion is based on both correlation coefficient and eigen value of correlation matrix, that is, the column with high correlation with other columns (e.g., larger than 0.7) and low eigen value (e.g., less than 0.01) will be deleted.
 
 ```{r, dpi = 300}
 ###### plot to check collinearity
@@ -132,11 +132,11 @@ eigpost <- eigen(cor(newdataX))$values
 delnames <- setdiff(colnames(dataX),colnames(newdataX))
 ggarrange(g1,g2, ncol=2, nrow=1, common.legend = TRUE, legend = "bottom", labels = "AUTO")
 ```
-\textbf{Figure 1: multicollinearity plot of the dataset**}
+\textbf{Figure 1: multicollinearity plot of the dataset}
 
 ### Final input of model
 
-There were 18 variables left as final input predictors (except for \textbf{Lasso} model), \textit{Fig. 1B} shows the correlation matrix after deletion.
+There were 18 variables left as final input predictors (except for \textbf{Lasso} model), \textbf{Fig. 1B} shows the correlation matrix after deletion.
 
 ## Method
 
@@ -246,6 +246,13 @@ newton.beta <- newres[nrow(newres),3:dim(newres)[2]]
 
 
 ### Gradient Decent
+
+For Newton's method with a large $p$, the computational burden in calculating the inverse of the Hessian Matrix $[\nabla^2 f(\beta_{i})]^{-1}$ increases quickly with $p$. One can update
+$$
+\beta_{i+1} = \beta_{i} + I_{p\times p}\nabla f(\beta_{i})
+$$
+This is easy to compute, but could slow in convergence.
+
 ```{r}
 ##### 2. gradient descent
 gradient <- function(dat, func, start, tol=1e-10,maxiter =200){ 
@@ -271,8 +278,28 @@ check <- tail(gradres)[,1:2]
 grad.beta <- gradres[nrow(gradres),3:dim(gradres)[2]]
 ```
 
-### Lasso
-problem 3&4 
+### Coordinate-wise descent LASSO
+
+Regularization is the common variable selection approaches for high-dimensional covariates. The best known Regularization is called LASSO. In linear regression, LASSO minimize
+$$
+f(\beta) = \frac{1}{2}\sum_{i=1}^{n}(y_{i} - \sum_{j=1}^{p}x_{i,j}\beta_{j})^{2} + \gamma\sum_{j=1}^{p}|\beta_{j}|
+$$
+for some $\gamma \geq 0$. Here the $x_{i,j}$ are standardized so that $\sum_{i}x_{i,j}/n = 0$ and $\sum_{i}x_{i,j}^{2}/n = 0$
+
+With a single predictor, the LASSO solution is very simple
+$$
+\hat{\beta}^{lasso}(\gamma) = S(\hat{\beta}, \gamma) = sign(\hat{\beta})(|\hat{\beta}| - \gamma)_{+}
+$$
+When p is large, the optimization could be challenging, so we could use coordinate-wise descent LASSO with objective function
+$$
+f(\beta_{j}) = \frac{1}{2}\sum_{i=1}^{n}(y_{i} - \sum_{k \neq j}x_{i,k}\tilde{\beta_{k}} - x_{i,j}\beta_{j})^{2} + \gamma\sum_{k \neq j}|\tilde{\beta_{k}}| + \gamma|\beta_{j}|
+$$
+Minimize $f(\beta_{j})$ w.r.t. $\beta_{j}$ while having $\tilde{\beta_{k}}$ fixed, we have
+$$
+\tilde{\beta}^{lasso}_{j}(\gamma) = S(\sum_{i=1}^{n}x_{i,j}(y_{i} - \tilde{y_{i}}^{(-j)}), \gamma)
+$$
+where $\tilde{y_{i}}^{(-j)} = \sum_{k \neq j}x_{i,k}\tilde{\beta_{k}}$
+
 ```{r}
 ##### 3. coordinate-wise logistic lasso
 sfun <- function(beta,lambda) sign(beta) * max(abs(beta)-lambda, 0)
