@@ -1,7 +1,7 @@
 ---
 title: "A study of optimization algorithms on a breast cancer diagnosis dataset"
 author: "Xinlei Chen, Guojing Wu and Yujing Yao"
-abstract: "This report discusses a study of optimization algorithms on breast cancer diagnosis dataset. Our goal is to build a predictive model based on logistic regression to facilicate cancer diagnosis, and we compared estimation method including Newton Raphson, Gradient Decent and Lasso. Our result shows that....."
+abstract: "This report discusses a study of optimization algorithms on breast cancer diagnosis dataset. Our goal is to build a predictive model based on logistic regression to facilicate cancer diagnosis, and we compared estimation method including Newton Raphson, Gradient Decent and Lasso. Our result shows that all of our algorithms were valid and Newton-Raphson was the most efficient one. For coordinate-wise descent LASSO with weighted updates methods, when lambda was 0.00276 it achieved the smallest MSE. The MSE of these three models were similar."
 thanks:
 keywords: "Gradient Decent; Lasso Logistic; Newton Raphson; Optimization"
 date: "March 14, 2019"
@@ -50,16 +50,16 @@ The goal of the exerise is to build a predictive model based on logistic regress
 
 The data \textit{breast-cancer.csv} have 569 row and 33 columns. The first column \textbf{ID} lables individual breast tissue images; The second column \textbf{Diagnonsis} indentifies if the image is coming from cancer tissue or benign cases (M=malignant, B = benign). There are 357  benign and 212  malignant cases. The other 30 columns correspond to mean, standard deviation and the largest values (points on the tails) of the distributions of the following 10 features computed for the cellnuclei.
 \begin{itemize}
-\item radius (mean of distances from center to points on the perimeter)
-\item texture (standard deviation of gray-scale values)
-\item perimeter
-\item area
-\item smoothness (local variation in radius lengths)
-\item compactness ($perimeter^2/area$ - 1.0)
-\item concavity (severity of concave portions of the contour)
-\item concave points (number of concave portions of the contour)
-\item symmetry
-\item fractal dimension ("coastline approximation" - 1)
+\item radius: mean of distances from center to points on the perimeter
+\item texture: standard deviation of gray-scale values
+\item perimeter: mean size of the core tumor
+\item area: mean area of the core tumor
+\item smoothness: local variation in radius lengths
+\item compactness: $perimeter^2/area$ - 1.0
+\item concavity: severity of concave portions of the contour
+\item concave points: number of concave portions of the contour
+\item symmetry: symmetry of the tumor
+\item fractal dimension: "coastline approximation" - 1
 \end{itemize}
 
 
@@ -81,7 +81,7 @@ resp <- as.vector(ifelse(mydata[,2] == "M", 1, 0))
 
 ### Variable selection
 
-There exists multicollinearity within the dataset (\textbf{Fig. 1A}), which will casue the correlation matrix to be singular and irreversible. We proposed a method to reduce this multicollinearity by deleting some variables. The chosen criterion is based on both correlation coefficient and eigen value of correlation matrix, that is, the column with high correlation with other columns (e.g., larger than 0.7) and low eigen value (e.g., less than 0.01) will be deleted.
+There exists multicollinearity within the dataset (\textbf{Fig. 1A}), which will casue the correlation matrix to be singular and irreversible. We proposed a method to reduce this multicollinearity by deleting some variables rather than simply by their definitions. The chosen criterion is based on both correlation coefficient and eigenvalue of correlation matrix, that is, the column with high correlation with other columns (e.g., larger than 0.7) and low eigenvalue (e.g., less than 0.01) will be deleted.
 
 \textbf{Figure 1: multicollinearity plot of the dataset}
 
@@ -137,7 +137,7 @@ ggarrange(g1,g2, ncol=2, nrow=1, common.legend = TRUE, legend = "bottom", labels
 
 ### Final input of model
 
-There were 18 variables left as final input predictors (except for \textbf{Lasso} model), \textbf{Fig. 1B} shows the correlation matrix after deletion.
+There were 18 variables left as final input predictors (except for \textbf{Lasso} model), \textbf{Fig. 1B} shows the correlation matrix after deletion. As the darker color stands for high correlation, we can see that after variable selection, there is no collinearity between variables.
 
 ## Method
 
@@ -501,6 +501,9 @@ kable(t(beta.res), "latex", caption = "The comparison of performance for estimat
 
 ## Conclusions
 
+In this study, we used modified Newton-Raphson algorithm with step halving, Newton-Raphson with gradient decent update and coordinate-wise descent LASSO with weighted updates to build 4 different predictive models for the breast cancer dataset. The variable selection was based on the correlation coefficient and eigenvalue of correlation matrix to remove the multicollinearity within the dataset. 
+
+As the result showed, our Newton-Raphson algorithm with step halving gave the same parameter estimation as R's built-in package GLM did, and it converged quickly. Gradient decent method showed similar estimation as Newton-Raphson method but it was less efficient comparing with Newton-Raphson method. For coordinate-wise descent LASSO with weighted updates method, according to the result of 5 fold cross validation, the lambda with the lowest MSE was 0.00276 and it shrunk 6 parameters to 0. All three algorithms were valid with MSE approximately equal to 0.02.
 
 ## References
 \begin{enumerate}
