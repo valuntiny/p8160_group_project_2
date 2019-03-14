@@ -1,10 +1,10 @@
 ---
 title: "A study of optimization algorithms on a breast cancer diagnosis dataset"
 author: "Xinlei Chen, Guojing Wu and Yujing Yao"
-abstract: "This report discusses a study of optimization algorithms on breast cancer diagnosis dataset. Our goal is to build a predictive model based on logistic regression to facilicate cancer diagnosis, and we compared estimation method including Newton Raphson, Gradient Decent and Lasso. Our result shows that all of our algorithms were valid and Newton-Raphson was the most efficient one. For coordinate-wise descent LASSO with weighted updates methods, when lambda was 0.00276 it achieved the smallest MSE. The MSE of these three models were similar."
+abstract: "This report discusses a study of optimization algorithms on breast cancer diagnosis dataset. Our goal is to build a predictive model based on logistic regression to facilicate cancer diagnosis, and we compared methods including Newton Raphson, Gradient Decent with general logistic regression and Pathwise Coordinate Descent with regularized logistic regression. Our result shows that all of our algorithms were valid and Newton-Raphson was the most efficient according to iteration times. The MSE of these three methods were similar. "
 thanks:
-keywords: "Gradient Decent; Lasso Logistic; Newton Raphson; Optimization"
-date: "March 14, 2019"
+keywords: "Gradient Decent; Logistic Regression; Newton Raphson; Optimization; Pathwise Coordinate Descent; Regularized Logistic Regression"
+date: "March 20, 2019"
 output:
     pdf_document:
     highlight: default
@@ -36,32 +36,36 @@ library(ggcorrplot) # for correlation heatmap
 library(ggpubr) # common legend
 library(matrixcalc) #is.negative.def
 library(kableExtra) # table
-library(glmnet)
+library(glmnet) # lasso
 set.seed(99999)
 options(knitr.table.format = "latex")
-theme_set(theme_bw())
 ```
 
 ## Background
 
-The goal of the exerise is to build a predictive model based on logistic regression to facilicate cancer diagnosis.
-
 ### Dataset
 
-The data \textit{breast-cancer.csv} have 569 row and 33 columns. The first column \textbf{ID} lables individual breast tissue images; The second column \textbf{Diagnonsis} indentifies if the image is coming from cancer tissue or benign cases (M=malignant, B = benign). There are 357  benign and 212  malignant cases. The other 30 columns correspond to mean, standard deviation and the largest values (points on the tails) of the distributions of the following 10 features computed for the cellnuclei.
+The data \textit{breast-cancer.csv} have 569 row and 33 columns. The first two columns inclues covariate "ID" which lables individual breast tissue images and covariate "Diagnonsis" which indentifies if the image is coming from cancer tissue or benign cases. There are 357  benign and 212  malignant cases. The other 30 columns correspond to mean, standard deviation and the largest values (points on the tails) of the distributions of the following 10 features computed for the cellnuclei.
 \begin{itemize}
 \item radius: mean of distances from center to points on the perimeter
 \item texture: standard deviation of gray-scale values
 \item perimeter: mean size of the core tumor
 \item area: mean area of the core tumor
 \item smoothness: local variation in radius lengths
-\item compactness: $perimeter^2/area$ - 1.0
+\item compactness: perimeter$^2/$area - 1.0
 \item concavity: severity of concave portions of the contour
 \item concave points: number of concave portions of the contour
 \item symmetry: symmetry of the tumor
 \item fractal dimension: "coastline approximation" - 1
 \end{itemize}
 
+### Variable selection
+
+There exists multicollinearity within the dataset (\textbf{Fig. 1A}), which will casue the correlation matrix to be singular and irreversible. Although the best practice to select variables is according to background information, in our context, we have three random variables, the mean estimate, variance estimate, and extreme value estimate one single background covariate. So we proposed a method to reduce this multicollinearity based on both correlation coefficient and eigenvalue of correlation matrix, that is, the column with high correlation with other columns (e.g., larger than 0.7) and low eigenvalue (e.g., less than 0.01) will be deleted.
+
+There were 18 variables left as final input predictors, \textbf{Fig. 1B} shows the correlation matrix after deletion. As the darker color stands for high correlation, we can see that after variable selection, there is less collinearity between variables.
+
+\textbf{Figure 1: multicollinearity plot of the dataset}
 
 ```{r}
 ###### data manipulation
@@ -77,15 +81,6 @@ X <- data.frame(dataX) %>%
   mutate(., intercept = 1)
 # response
 resp <- as.vector(ifelse(mydata[,2] == "M", 1, 0))
-```
-
-### Variable selection
-
-There exists multicollinearity within the dataset (\textbf{Fig. 1A}), which will casue the correlation matrix to be singular and irreversible. We proposed a method to reduce this multicollinearity by deleting some variables rather than simply by their definitions. The chosen criterion is based on both correlation coefficient and eigenvalue of correlation matrix, that is, the column with high correlation with other columns (e.g., larger than 0.7) and low eigenvalue (e.g., less than 0.01) will be deleted.
-
-\textbf{Figure 1: multicollinearity plot of the dataset}
-
-```{r}
 ###### plot to check collinearity
 colnames(dataX) <- namesX
 colinearity.plot <- function(data){
@@ -135,25 +130,103 @@ delnames <- setdiff(colnames(dataX),colnames(newdataX))
 ggarrange(g1,g2, ncol=2, nrow=1, common.legend = TRUE, legend = "bottom", labels = "AUTO")
 ```
 
-### Final input of model
-
-There were 18 variables left as final input predictors (except for \textbf{Lasso} model), \textbf{Fig. 1B} shows the correlation matrix after deletion. As the darker color stands for high correlation, we can see that after variable selection, there is no collinearity between variables.
 
 ## Method
 
 ### Logistic Regression
 
-Let $y$ be the vector $n$ response random variable, $X$ denote the $n\times p$ design matrix(let$X_{i}$ denote the $i$th row) and $\beta$ denote the $p\times 1$ coefficient.
+Let $y$ be the vector of $n$ response random variable, $X$ denote the $n\times p$ design matrix ($X_{i}$ denote the $i$th row) and $\beta$ denote the $p\times 1$ coefficient. Let $\eta=E(y) =X\beta$ and given the link function as $g(\eta) = \log\frac{\eta}{1-\eta}$, we have the logistic regression model written as: 
+
+$$\log(\frac{\eta}{1-\eta}) = X\beta$$
+
+The likelihood of this logistic regression is:
+$$L(\beta; X, y) = \prod_{i=1}^n \{(\frac{\exp(X_{i}\beta)}{1+\exp(X_{i}\beta)})^{y_i}(\frac{1}{1+\exp(X_{i}\beta)})^{1-y_i}\}$$
+Maximizing the likelihood is equivalent to maximizing the log likelihood:
 $$
-\begin{split}
-y \sim Bin(n, p) \\
-g(E(y)) = X\beta
-\end{split}
+\begin{aligned}
+l(\beta) 
+& = \sum_{i=1}^n \{y_i(X_{i}\beta)-\log(1+\exp(X_{i}\beta))\}
+\end{aligned}
 $$
-Given the link function as 
+Let $p$, a vector of $n$ denote $p=\frac{\exp(X\beta)}{1+\exp(X\beta)}$. The gradient of this function is:
+$$\nabla l(\beta) = X^T(y-p)$$
+and the Hessian is given by:
+$$\nabla^2 l(\beta) = -X^T W X$$ 
+where $W = diag(p_i(1-p_i)), i=1,\cdots,n$. Hessian matrix is negative definite and is well behaved.
+
+### Newton-Raphson Algorithm
+
+We wanted to search for solutions to the system of equations $\nabla l(\beta) = 0$.
+
+At each step, given the current point $\beta_{i}$, the gradient $\nabla l(\beta)$ for $\beta$ near $\beta_{i}$ may be approximated according to taylor expansion by $\nabla l(\beta_{i}) + \nabla^2 l(\beta_{i})(\beta - \beta_{i})$
+which defines the plane tangent to $\nabla l(\beta)$ at $\beta_{i}$. The next step in the algorithm is determined by solving the system of the above linear equations, which gives
 $$
-g(\eta) = log\frac{\eta}{1-\eta}
+\beta_{i+1} = \beta_{i} -[\nabla^2 l(\beta_{i})]^{-1}\nabla l(\beta_{i})
 $$
+Since the hessian is negative definite, the direction of each step is correct, we wanted to optimize the size of each step. We applied step-halving method and the next "current point" is set to be the solution
+$$
+\beta_{i+1}(\gamma) = \beta_{i} - \gamma[\nabla^2 l(\beta_{i})]^{-1}\nabla l(\beta_{i})
+$$
+Then compute the full Newton-Raphson step, corresponding to $\gamma = 1$. If $f(\theta_{i+1}(1)) \geq f(\theta_{i})$, then set $\theta_{i+1} = \theta_{i+1}(1)$ and go on to the next iteration. Otherwise, search for a value $\gamma \in (0,1)$ for which $f(\theta_{i+1}(\gamma)) \geq f(\theta_{i})$, set $\theta_{i+1} = \theta_{i+1}(\gamma)$ and go on to the next iteration. The algorithm continues like this iteratively choosing a sequence of points $\beta_{0}, \beta_{1},...,\beta_{i},...$ until convergence is achieved.
+
+For Newton's method with a large $p$, the computational burden in calculating the inverse of the Hessian Matrix $[\nabla^2 f(\beta_{i})]^{-1}$ increases quickly with $p$. One can update
+$$
+\beta_{i+1} = \beta_{i} + H_{i}\nabla f(\beta_{i})
+$$
+where $H_{i} = (X^TX)^{-1}$ for every $i$. This is easy to compute, but could be slow in convergence. And this is called Gradient Decent algorithm.
+
+The steps are:
+
+- get the objective (loglik,grad,Hess) function;
+- use the principle of newton raphson to update the estimate, if the step size too large, step-halving step
+- stop searching until the convergences of the estimates.
+
+
+### Pathwise Coordinate Descent with regularized logistic regression
+
+Regularization is the common variable selection approaches for high-dimensional covariates. The best known Regularization is called LASSO, which is to add $L1$-penalty to the objective function. First we consider a linear regression, with penalty term, we are aiming to solve the following problem: 
+$$\min_{\beta \in \mathbb{R}^{p+1}} \{ \frac{1}{2n} \sum_{i=1}^{n}(z_{i} - \sum_{j=0}^{p}x_{i,j}\beta_{j})^{2} + \lambda P{(\beta)})\}$$
+When $p$, the number of predictors is large, the optimization could be challenging, so we could use coordinate-wise descent update with objective function
+$$
+f(\beta_{j}) = \frac{1}{2n}\sum_{i=1}^{n}(y_{i} - \sum_{k \neq j}x_{i,k}\tilde{\beta_{k}} - x_{i,j}\beta_{j})^{2} + \lambda\sum_{k \neq j}|\tilde{\beta_{k}}| + \lambda|\beta_{j}|
+$$
+Minimize $f(\beta_{j})$ w.r.t. $\beta_{j}$ while having $\tilde{\beta_{k}}$ fixed, we have
+$$
+\tilde{\beta}^{lasso}_{j}(\lambda) \leftarrow S(\frac{1}{n}\sum_{i=1}^{n}x_{i,j}(y_{i} - \tilde{y_{i}}^{(-j)}), \lambda)
+$$
+where $\tilde{y_{i}}^{(-j)} = \sum_{k \neq j}x_{i,k}\tilde{\beta_{k}}$ and $S(\hat{\beta}, \lambda) = sign(\hat{\beta})(|\hat{\beta}| - \lambda)_{+}$.
+
+If a weight $\omega_{i}$ is then associated with each observation. In this case the update becomes only slightly more complicated:
+$$
+\tilde{\beta}^{lasso}_{j}(\lambda) \leftarrow \frac{S(\sum_{i=1}^{n}\omega_{i}x_{i,j}(y_{i} - \tilde{y_{i}}^{(-j)}), \lambda)}{\sum_{i=1}^n\omega_{i}x_{i,j}^{2}}
+$$
+
+In the context of logistic regression, we are aiming to maximize the penalized log likelihood:
+$$\max_{\beta \in \mathbb{R}^{p+1}} \frac{1}{n}\sum_{i=1}^n  \{y_i(X_{i}\beta)-\log(1+\exp(X_{i}\beta))\}-\lambda \sum_{j=1}^p |\beta_j|$$
+for some $\lambda \geq 0$. Here the $x_{i,j}$ are standardized so that $\sum_{i}x_{i,j}/n = 0$ and $\sum_{i}x_{i,j}^{2}/n = 0$.
+
+The Newton algorithm for maximizing the log likelihood amounts to interatively reweighted least squares. Hence if the current estimate of the parameter is $\tilde{\beta}$, we can form a quardratic approximation to the negative log likelihood by taylor expansion around the current estimate, which is:
+$$
+f(\beta) = -\frac{1}{2n}\sum_{i=1}^{n}w_i(z_{i} - \sum_{j=0}^{p}x_{i,j}\beta_{j})^{2} + C(\tilde{\beta})
+$$
+where 
+\[
+\begin{aligned}
+& z_i = \tilde{\beta}_0+ x_i^T\tilde{\beta} + \frac{y_i-\tilde{p}(x_i)}{\tilde{p}(x_i)(1-\tilde{p}(x_i))}, \text{working response}\\
+& w_i = \tilde{p}(x_i)(1-\tilde{p}(x_i)), \text{working weights}
+\end{aligned}
+\]
+and $\tilde{p}(x_i)$ is evaluated at the current parameters, the last term is constant. The Newton update is obtained by minimizing the $f(\beta)$
+
+The coordinate descent algorithm to solve the penalized weighted least squares problem 
+$$\min_{\beta \in \mathbb{R}^{p+1}} \{ -f(\beta) + \lambda P(\beta)\}$$
+The above amounts to a sequence of nested loops:
+
+- outer loop: start with $\lambda$ that all the coefficients are forced to be zerp, then decrement $\lambda$;
+- middle loop: update the quardratic $f(\beta)$ using the current estimates of parameters;
+- inner loop: run the coordinate descent algorithm on the penalized weighted least square problem.
+
+In our problem, care is taken to avoid coefficients diverging in order to achieve fitted probabilities of 0 or 1 which is the warning message by the R package. When a probability with $\epsilon = 1e-5$ of 1, we set it to 1, and set the weights to $\epsilon$. 0 is treated similarly.
 
 ```{r}
 ###### 0.logistic regression
@@ -162,47 +235,6 @@ $$
 logdata <- cbind.data.frame(resp,newdataX)
 logfit.1 <- glm(resp~., family = binomial(link = "logit"),data = logdata)
 logit.beta <- coef(logfit.1)
-```
-
-
-### Modified Newton-Raphson Algorithm with Step Halving
-
-The likelihood of logistic regression is:
-$$L(\beta; X, y) = \prod_{i=1}^n \{(\frac{\exp(X_{i}\beta)}{1+\exp(X_{i}\beta)})^{y_i}(\frac{1}{1+\exp(X_{i}\beta)})^{1-y_i}\}$$
-Maximizing the likelihood is equivalent to maximizing the log likelihood:
-$$
-\begin{aligned}
-f(\beta) 
-& = \sum_{i=1}^n \{y_i(X_{i}\beta)-\log(1+\exp(X_{i}\beta))\}\\
-& = <X\beta, Y> - \sum_{i=1}^n\log(1+\exp(X_{i}\beta))
-\end{aligned}
-$$
-Let $p$, a vector of $n$ denote $p=\frac{\exp(X\beta)}{1+\exp(X\beta)}$. 
-The gradient of this function is:
-$$\nabla f(\beta) = X^T(y-p)$$
-The Hessian is given by:
-$$\nabla^2 f(\beta) = -X^T W X$$ where $W = diag(p_i(1-p_i)), i=1,\cdots,n$
-Hessian matrix is negative definite, well behaved.
-
-The above can be regarded as a method to search for solutions to the system of nonlinear equations $\nabla f(\beta) = 0$.
-
-At each step, given the current point $\beta_{i}$, the gradient $\nabla f(\beta)$ for $\beta$ near $\beta_{i}$ may be approximated by
-$$
-\nabla f(\beta_{i}) + \nabla^2 f(\beta_{i})(\beta - \beta_{i})
-$$
-which defines the plane tangent to $\nabla f(\beta)$ at $\beta_{i}$. The next step in the algorithm is determined by solving the system of linear equations
-$$
-\nabla f(\beta_{i}) + \nabla^2 f(\beta_{i})(\beta - \beta_{i}) = 0
-$$
-and the next “current point” is set to be the solution
-$$
-\beta_{i+1}(\lambda) = \beta_{i} - \lambda[\nabla^2 f(\beta_{i})]^{-1}\nabla f(\beta_{i})
-$$
-Then compute the full Newton-Raphson step, corresponding to $\lambda = 1$. If $f(\theta_{i+1}(1)) \geq f(\theta_{i})$, then set $\theta_{i+1} = \theta_{i+1}(1)$ and go on to the next iteration. Otherwise, search for a value $\lambda \in (0,1)$ for which $f(\theta_{i+1}(\lambda)) \geq f(\theta_{i})$, set $\theta_{i+1} = \theta_{i+1}(\lambda)$ and go on to the next iteration.
-
-The algorithm continues like this iteratively choosing a sequence of points $\beta_{0}, \beta_{1},...,\beta_{i},...$ until convergence is achieved.
-
-```{r}
 ##### 1. classical newton raphson
 newX <- data.frame(newdataX) %>%
   mutate(., intercept = 1)
@@ -211,10 +243,10 @@ newdat <- list(y = resp, X = as.matrix(newX))
 logisticstuff <- function(dat, betavec){ 
   u <- dat$X %*% betavec
   expu <- exp(u) 
-  loglik <- t(u) %*% dat$y - sum((log(1 + expu))) # Log-likelihood at betavec
-  prob <- expu / (1 + expu) # P(Y_i=1|x_i)
+  loglik <- t(u) %*% dat$y - sum((log(1 + expu))) 
+  prob <- expu / (1 + expu) 
   grad <- t(dat$X) %*% (dat$y - prob)
-  Hess <- -t(dat$X) %*% diag(as.vector(prob*(1 - prob))) %*% dat$X # Hessian at betavec
+  Hess <- -t(dat$X) %*% diag(as.vector(prob*(1 - prob))) %*% dat$X 
   return(list(loglik = loglik, grad = grad, Hess = Hess))}
 
 NewtonRaphson <- function(dat, func, start, tol=1e-10, maxiter =200){ 
@@ -229,7 +261,7 @@ NewtonRaphson <- function(dat, func, start, tol=1e-10, maxiter =200){
     prev <- cur 
     lambda = 0
     cur <- prev - ((1/(2^lambda)) * solve(stuff$Hess)) %*% stuff$grad
-    while (func(dat, cur)$loglik < prevloglik) { # step-halving
+    while (func(dat, cur)$loglik < prevloglik){ # step-halving
       lambda = lambda + 1
       cur <- prev - ((1/(2^lambda)) * solve(stuff$Hess)) %*% stuff$grad
     }
@@ -242,24 +274,13 @@ newres <- NewtonRaphson(newdat,logisticstuff, start = rep(0, dim(newdat$X)[2]))
 # check convergence
 check <- tail(newres)[,1:2]
 newton.beta <- newres[nrow(newres),3:dim(newres)[2]]
-```
-
-### Newton Raphson with Gradient Decent Update
-
-For Newton's method with a large $p$, the computational burden in calculating the inverse of the Hessian Matrix $[\nabla^2 f(\beta_{i})]^{-1}$ increases quickly with $p$. One can update
-$$
-\beta_{i+1} = \beta_{i} + I_{p\times p}\nabla f(\beta_{i})
-$$
-This is easy to compute, but could slow in convergence.
-
-```{r}
 ##### 2. gradient descent
 gradient <- function(dat, func, start, tol=1e-10, maxiter = 200){ 
   i <- 0 
   cur <- start 
   pp <- length(start)
   stuff <- func(dat, cur) 
-  hessinversed <- solve(t(dat$X) %*% (dat$X))# double check
+  hessinversed <- solve(t(dat$X) %*% (dat$X))
   res <- c(0, stuff$loglik, cur)
   prevloglik <- -Inf
   while (i < maxiter && abs(stuff$loglik - prevloglik) > tol && stuff$loglik > -Inf) { 
@@ -275,38 +296,7 @@ gradres <- gradient(newdat, logisticstuff, start = rep(0, dim(newdat$X)[2]), max
 # check convergence
 check <- tail(gradres)[,1:2]
 grad.beta <- gradres[nrow(gradres),3:dim(gradres)[2]]
-```
-
-### Coordinate-wise descent LASSO with weighted updates
-
-Regularization is the common variable selection approaches for high-dimensional covariates. The best known Regularization is called LASSO. In linear regression, LASSO minimize
-$$
-f(\beta) = \frac{1}{2}\sum_{i=1}^{n}(y_{i} - \sum_{j=1}^{p}x_{i,j}\beta_{j})^{2} + \gamma\sum_{j=1}^{p}|\beta_{j}|
-$$
-for some $\gamma \geq 0$. Here the $x_{i,j}$ are standardized so that $\sum_{i}x_{i,j}/n = 0$ and $\sum_{i}x_{i,j}^{2}/n = 0$
-
-With a single predictor, the LASSO solution is very simple
-$$
-\hat{\beta}^{lasso}(\gamma) = S(\hat{\beta}, \gamma) = sign(\hat{\beta})(|\hat{\beta}| - \gamma)_{+}
-$$
-When p is large, the optimization could be challenging, so we could use coordinate-wise descent LASSO with objective function
-$$
-f(\beta_{j}) = \frac{1}{2}\sum_{i=1}^{n}(y_{i} - \sum_{k \neq j}x_{i,k}\tilde{\beta_{k}} - x_{i,j}\beta_{j})^{2} + \gamma\sum_{k \neq j}|\tilde{\beta_{k}}| + \gamma|\beta_{j}|
-$$
-Minimize $f(\beta_{j})$ w.r.t. $\beta_{j}$ while having $\tilde{\beta_{k}}$ fixed, we have
-$$
-\tilde{\beta}^{lasso}_{j}(\gamma) \leftarrow S(\sum_{i=1}^{n}x_{i,j}(y_{i} - \tilde{y_{i}}^{(-j)}), \gamma)
-$$
-where $\tilde{y_{i}}^{(-j)} = \sum_{k \neq j}x_{i,k}\tilde{\beta_{k}}$.
-
-A weight $\omega_{i}$ is then associated with each observation. In this case the update becomes only slightly more complicated:
-$$
-\tilde{\beta}^{lasso}_{j}(\gamma) \leftarrow \frac{S(\sum_{i=1}^{n}\omega_{i}x_{i,j}(y_{i} - \tilde{y_{i}}^{(-j)}), \gamma)}{\sum_{i}\omega_{i}x_{i,j}^{2}}
-$$
-
-```{r}
 ##### 3. coordinate-wise logistic lasso
-
 sfun <- function(beta,lambda) sign(beta) * max(abs(beta)-lambda, 0)
 coordinatelasso <- function(lambda, dat, s, tol=1e-10, maxiter = 200){
   i <- 0 
@@ -339,7 +329,7 @@ coordinatelasso <- function(lambda, dat, s, tol=1e-10, maxiter = 200){
 corres <- coordinatelasso(lambda = exp(-8e-1), newdat, s = rep(0, dim(newdat$X)[2]) ,maxiter = 2000)
 check <- tail(corres)[,1:2]
 cor.beta <- corres[nrow(corres),3:dim(corres)[2]]
-logmod <- glmnet(newdat$X[,-dim(newdat$X)[2]], y=newdat$y, alpha=1, family="binomial",lambda=1e-2)
+# logmod <- glmnet(newdat$X[,-dim(newdat$X)[2]], y=newdat$y, alpha=1, family="binomial",lambda=1e-2)
 # check: coef.glmnet(logmod)
 logmod <- cv.glmnet(newdat$X[,-dim(newdat$X)[2]], y=newdat$y, alpha=1, family="binomial",type.measure="mse")
 # check: plot(logmod)
@@ -350,7 +340,7 @@ logmod <- cv.glmnet(newdat$X[,-dim(newdat$X)[2]], y=newdat$y, alpha=1, family="b
 
 ### Estimation path for Lasso
 
-\textbf{Fig. 2} shows us that as the $\lambda$ increases, all the variable parameters shrink accordingly. When $\lambda = 0$, the result is the same as Least Square method and when $\lambda$ is too large, all the  parameters shrink to 0.
+\textbf{Fig. 2} shows us that as the $\lambda$ increases, all the variable estimates of parameters shrink accordingly since we penalize all the parameters, though in some. When $\lambda = 0$, the result is the same as least square method and when $\lambda$ is too large, all the estimates of parameters shrink to 0.
 
 ```{r, dpi = 300}
 # impletement the pathwise coordinatewise optimization algorithm to obtain a path of solutions
@@ -379,13 +369,10 @@ path.plot <- path.out %>%
   xlab("log(Lambda)") + 
   ylab("Estimate") +
   theme(legend.position = "bottom", 
-        legend.text = element_text(size = 5))
+        legend.text = element_text(size = 6))
 path.plot
-```
 
-### Cross validation for lasso
 
-```{r}
 ##### 5-fold cross-validation and pathwise coordinatewise optimization algorithm
 # when lambda = 0.5, all the betas go to 0
 cvresult <- function(inputx,inputy,grid,K){
@@ -433,15 +420,17 @@ cv.plot <-
     xlab("log(Lambda)") + ylab("MSE") +
     geom_vline(xintercept = log(best.lambda),col=3,lty=3) +
     annotate("text", log(best.lambda), 0.1, label = paste("best log(lambda) = ", round(log(best.lambda), 3), sep = ""))
-  
 cv.plot
 ```
 
-When using 5-fold cross-validation, we calculate the mean squared error (MSE) and its $\pm1\sigma^{2}$ interval as the output. \textbf{Fig. 3} shows us that the $lambda$ with the lowest MSE is `r round(as.numeric(best.lambda), 5)`.
+### Cross validation for lasso
+
+We used 5-fold cross-validation to choose the best $\lambda$ such that the objective function with penalty term can achieve its extreme value. We calculate the mean squared error (MSE) and its $\pm1\sigma$ interval as the output. \textbf{Fig. 3} shows us the trajectory that as the penalty term gets larger, the penalized likelihood achieves its minimum and then increase gradually. the $\lambda$ with the lowest MSE is `r round(as.numeric(best.lambda), 4)`.
+
 
 ### Model comparison
 
-We finally compared these four methods: Classic Logistic Regression (GLM package), Modified Newton-Raphson Algorithm with Step Halving (Newton Raphson), Newton Raphson with Gradient Decent Update (Gradient Decent) and Coordinate-wise descent LASSO with weighted updates (Logistic Lasso). \textbf{Table 1} shows the MSE and iteration time they need to converge: Newton Raphson method needs the lowest iteration times while Gradient Decent method needs more than 1000 times to converge. \textbf{Table 2} shows the final parameter estimation calculated by these four methods. Newton Raphson got the exact same results as the build-in GLM, which proved the validity of our algorithm. And the Gradient Decent result is similar to Newton Raphson. With the best $\lambda$, Lasso results in turning 6 parameters to 0.
+We finally compared these methods: Classic Logistic Regression (GLM package), Newton-Raphson Algorithm, Gradient Decent and Pathwise Coordinate descent penalized Logistic regression. \textbf{Table 1} shows the MSE and the iteration times they need to converge. All three algorithms were valid with MSE approximately equal to 0.02. Newton Raphson method needs the lowest iteration times while Gradient Decent method needs more than 1000 times to converge. \textbf{Table 2} shows the final parameter estimation calculated by these methods compared to the results from built in R package, which can help prove the validity of our algorithm. The Gradient Decent result is similar to Newton Raphson. With the best $\lambda$, Lasso results in turning 6 parameters to 0. The difference between the estimates of our algorithm and built-in package may come from the fact that we include intercept into penalty term while the built-in one doesn't.
 
 ```{r}
 ######## compare prediction performance of all results
@@ -465,17 +454,23 @@ newton.pred <- pred.fun(resp,newX,newton.beta)
 grad.ite <- nrow(gradres)
 grad.beta <- gradres[nrow(gradres),3:dim(gradres)[2]]
 grad.pred <- pred.fun(resp,newX,grad.beta)
+logmod.cv <- cv.glmnet(newdat$X[,-dim(newdat$X)[2]], y=newdat$y, alpha=1, family="binomial")
+best.lambda.func <- logmod$lambda.min
+logmod <- glmnet(newdat$X[,-dim(newdat$X)[2]], y=newdat$y, alpha=1, family="binomial",lambda = best.lambda.func)
+glmnet.beta <- c(coef.glmnet(logmod)[2:length(coef.glmnet(logmod))],coef.glmnet(logmod)[1])
+glmnet.pred <- predict(logmod,newdataX,type="response", lambda = best.lambda.func)
+glmnet.pred <- mean((resp-glmnet.pred)^2)
 # lasso logistic
 lasso.ite <- nrow(finlasso)
 lasso.beta <- lasso.beta
 lasso.pred <-  pred.fun(resp,newX,lasso.beta)
 
-beta.res <- round(as.matrix(rbind(log.beta,newton.beta,grad.beta,lasso.beta)),2)
+beta.res <- round(as.matrix(rbind(log.beta,newton.beta,grad.beta,glmnet.beta,lasso.beta)),2)
 colnames(beta.res) <- colnames(newX)
-rownames(beta.res) <- c("GLM package","Newton Raphson","Gradient Decent","Logistic Lasso")
-perf.res <- matrix(rep(NA),ncol = 2, nrow = 4)
+rownames(beta.res) <- c("GLM package","Newton Raphson","Gradient Decent","Lasso package","Logistic Lasso")
+perf.res <- matrix(rep(NA),ncol = 2, nrow = 5)
 colnames(perf.res) <- c("iteration times","MSE")
-rownames(perf.res) <- c("GLM package","Newton Raphson","Gradient Decent","Logistic Lasso")
+rownames(perf.res) <- c("GLM package","Newton Raphson","Gradient Decent","Lasso package","Logistic Lasso")
 perf.res[1,1] <- "NA"
 perf.res[1,2] <- round(log.pred ,2)
 perf.res[2,1] <- newton.ite
@@ -484,26 +479,24 @@ perf.res[3,1] <- grad.ite
 perf.res[3,2] <- round(grad.pred,2)
 perf.res[4,1] <- lasso.ite
 perf.res[4,2] <- round(lasso.pred,2)
+perf.res[5,1] <- "NA"
+perf.res[5,2] <- round(glmnet.pred,2)
 
 # output-performace
 kable(t(perf.res), "latex", caption = "The comparison of performance for estimation algorithms and models", booktabs = T) %>% 
   kable_styling(latex_options = c("hold_position", "scale_down")) %>%
   add_footnote(c("Dataset: Breast Cancer Diagnosis"),
                notation = "alphabet") 
- 
 # output-beta
 kable(t(beta.res), "latex", caption = "The comparison of performance for estimation algorithms and models", booktabs = T) %>% 
   kable_styling(latex_options = c("hold_position", "scale_down")) %>%
   add_footnote(c("Dataset: Breast Cancer Diagnosis"),
                notation = "alphabet")            
-
 ```
 
 ## Conclusions
 
-In this study, we used modified Newton-Raphson algorithm with step halving, Newton-Raphson with gradient decent update and coordinate-wise descent LASSO with weighted updates to build 4 different predictive models for the breast cancer dataset. The variable selection was based on the correlation coefficient and eigenvalue of correlation matrix to remove the multicollinearity within the dataset. 
-
-As the result showed, our Newton-Raphson algorithm with step halving gave the same parameter estimation as R's built-in package GLM did, and it converged quickly. Gradient decent method showed similar estimation as Newton-Raphson method but it was less efficient comparing with Newton-Raphson method. For coordinate-wise descent LASSO with weighted updates method, according to the result of 5 fold cross validation, the lambda with the lowest MSE was 0.00276 and it shrunk 6 parameters to 0. All three algorithms were valid with MSE approximately equal to 0.02.
+In this study, we used Newton-Raphson algorithm, Gradient Decent and Pathwise Coordinate descent to build three different predictive models for the breast cancer dataset. The variable selection was based on the correlation coefficient and eigenvalue of correlation matrix to remove the multicollinearity within the dataset. The results of our methods are compared to the the same parameter estimation as R's built-in packages. Newton-Raphson has the convincing estimation and it converged quickly. Gradient decent method showed similar estimation as Newton-Raphson method but it was less efficient. For Pathwise Coordinate descent with LASSO logistic, according to the result of 5 fold cross validation and estimation result, the lambda with the lowest MSE was 0.00276 and it shrunk 6 parameters to 0, which is comparable to the result by R's built-in packages. 
 
 ## References
 \begin{enumerate}
