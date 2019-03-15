@@ -202,7 +202,7 @@ $$
 $$
 
 In the context of logistic regression, we are aiming to maximize the penalized log likelihood:
-$$\max_{\beta \in \mathbb{R}^{p+1}} \frac{1}{n}\sum_{i=1}^n  \{y_i(X_{i}\beta)-\log(1+\exp(X_{i}\beta))\}-\lambda \sum_{j=1}^p |\beta_j|$$
+$$\max_{\beta \in \mathbb{R}^{p+1}} \frac{1}{n}\sum_{i=1}^n  \{y_i(X_{i}\beta)-\log(1+\exp(X_{i}\beta))\}-\lambda \sum_{j=0}^p |\beta_j|$$
 for some $\lambda \geq 0$. Here the $x_{i,j}$ are standardized so that $\sum_{i}x_{i,j}/n = 0$ and $\sum_{i}x_{i,j}^{2}/n = 0$.
 
 The Newton algorithm for maximizing the log likelihood amounts to interatively reweighted least squares. Hence if the current estimate of the parameter is $\tilde{\beta}$, we can form a quardratic approximation to the negative log likelihood by taylor expansion around the current estimate, which is:
@@ -465,12 +465,12 @@ lasso.ite <- nrow(finlasso)
 lasso.beta <- lasso.beta
 lasso.pred <-  pred.fun(resp,newX,lasso.beta)
 
-beta.res <- round(as.matrix(rbind(log.beta,newton.beta,grad.beta,glmnet.beta,lasso.beta)),2)
+beta.res <- round(as.matrix(rbind(log.beta,newton.beta,grad.beta,lasso.beta,glmnet.beta)),2)
 colnames(beta.res) <- colnames(newX)
-rownames(beta.res) <- c("GLM package","Newton Raphson","Gradient Decent","Lasso package","Logistic Lasso")
+rownames(beta.res) <- c("GLM package","Newton Raphson","Gradient Decent","Logistic Lasso","Lasso package")
 perf.res <- matrix(rep(NA),ncol = 2, nrow = 5)
 colnames(perf.res) <- c("iteration times","MSE")
-rownames(perf.res) <- c("GLM package","Newton Raphson","Gradient Decent","Lasso package","Logistic Lasso")
+rownames(perf.res) <- c("GLM package","Newton Raphson","Gradient Decent","Logistic Lasso","Lasso package")
 perf.res[1,1] <- "NA"
 perf.res[1,2] <- round(log.pred ,2)
 perf.res[2,1] <- newton.ite
@@ -496,7 +496,7 @@ kable(t(beta.res), "latex", caption = "The comparison of performance for estimat
 
 ## Conclusions
 
-In this study, we used Newton-Raphson algorithm, Gradient Decent and Pathwise Coordinate descent to build three different predictive models for the breast cancer dataset. The variable selection was based on the correlation coefficient and eigenvalue of correlation matrix to remove the multicollinearity within the dataset. The results of our methods are compared to the the same parameter estimation as R's built-in packages. Newton-Raphson has the convincing estimation and it converged quickly. Gradient decent method showed similar estimation as Newton-Raphson method but it was less efficient. For Pathwise Coordinate descent with LASSO logistic, according to the result of 5 fold cross validation and estimation result, the lambda with the lowest MSE was 0.00276 and it shrunk 6 parameters to 0, which is comparable to the result by R's built-in packages. 
+In this study, we used Newton-Raphson algorithm, Gradient Decent and Pathwise Coordinate descent to build three different predictive models for the breast cancer dataset. The variable selection was based on the correlation coefficient and eigenvalue of correlation matrix to remove the multicollinearity within the dataset. The results of our methods are compared to the the same parameter estimation as R's built-in packages. Newton-Raphson has the convincing estimation and it converged quickly. Gradient decent method showed similar estimation as Newton-Raphson method but it was less efficient. For Pathwise Coordinate descent with LASSO logistic, according to the result of 5 fold cross validation and estimation result, the $\lambda$ with the lowest MSE and it shrunk six parameters to zero, which is comparable to the result by R's built-in packages. 
 
 ## References
 \begin{enumerate}
