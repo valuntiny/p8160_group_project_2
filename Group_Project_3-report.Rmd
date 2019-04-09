@@ -52,13 +52,21 @@ The data \textit{Down.csv} consists of the expression levels of 77 proteins/prot
 
 We found that data is missing for some of the covariates, so we deleted those high missing rate(>20\%). For those covariates with missing rate < 20\%, we assumed them to be missing completely at random(MCAR), so we would analyze the complete cases in the following.
 
-```{r}
+!!!need a missing plot here
+
+```{r dpi = 300}
 oridata <- read.csv("Down.csv")
-# summary(oridata)
-attach(oridata)
 mydata <- oridata%>%
-  select(.,-c(BAD_N,BCL2_N,H3AcK18_N,EGR1_N,H3MeK4_N))%>%
+  dplyr::select(.,-c(BAD_N,BCL2_N,H3AcK18_N,EGR1_N,H3MeK4_N))%>%
   filter(complete.cases(.))
+```
+
+
+!!! explain why we need to apply regulized method: singular
+
+\textbf{Figure 1: multicollinearity plot of the dataset}
+
+```{r}
 n <- dim(mydata)[1]
 ncol <- dim(mydata)[2]
 list <- c(2:(ncol - 1))
@@ -73,10 +81,10 @@ X <- data.frame(dataX) %>%
 y <- as.vector(ifelse(mydata[,ncol] == "Down syndrome", 1, 0))
 dat <- list(y = y, X = as.matrix(X))
 # check correlation
-# cor(dataX) %>% 
-#   ggcorrplot(.,ggtheme = ggplot2::theme_gray,
-#              colors = c("#6D9EC1", "white", "#E46726"),
-#              tl.cex = 6)
+cor(dataX) %>%
+  ggcorrplot(.,ggtheme = ggplot2::theme_gray,
+             colors = c("#6D9EC1", "white", "#E46726"),
+             tl.cex = 6)
 ```
 
 
@@ -97,11 +105,6 @@ l(\beta)
 & = \sum_{i=1}^n \{y_i(X_{i}\beta)-\log(1+\exp(X_{i}\beta))\}
 \end{aligned}
 $$
-Let $p$, a vector of $n$ denote $p=\frac{\exp(X\beta)}{1+\exp(X\beta)}$. The gradient of this function is:
-$$\nabla l(\beta) = X^T(y-p)$$
-and the Hessian is given by:
-$$\nabla^2 l(\beta) = -X^T W X$$ 
-where $W = diag(p_i(1-p_i)), i=1,\cdots,n$. Hessian matrix is negative definite and is well behaved.
 
 
 ### Pathwise Coordinate Descent with regularized logistic regression
@@ -136,9 +139,9 @@ In our problem, care is taken to avoid coefficients diverging in order to achiev
 
 ### Smoothing bootstrap and inference
 
-Classical statistical theory ignores model selection in assessing estimation accuracy. Here we consider bootstrap methods for computing standard errors and conﬁdence intervals that take model selection into account. The methodology involves bagging, also known as bootstrap smoothing, to tame the erratic discontinuities of selection-based estimators. 
+Classical statistical theory ignores model selection in assessing estimation accuracy. Here we consider bootstrap methods for computing standard errors and confidence intervals that take model selection into account. The methodology involves bagging, also known as bootstrap smoothing, to tame the erratic discontinuities of selection-based estimators. 
 
-Point estimation：
+Point estimation:
 
 - First we need to prepare a couple of candidate models 
 - for each bootstrap in bootstrap with B times, select the best model and get estimates for the coefficient denoted as $t(y^*)$
@@ -152,11 +155,11 @@ Bootstrap smoothing (Efron and Tibshirani 1996), a form of model averaging, is b
 smoothed interval
 In addition to the percentile confidence interval, the nonparametric delta-method estimate of standard deviation for $s(y)$ in the nonideal case 
 \[
-\tilde{sd}_B = [\sum_{i=1}^n\hat{cov_j^2}]^{1/2}
+\tilde{sd}_B = [\sum_{i=1}^n\hat{cov}_j^2]^{1/2}
 \]
 where 
 \[
-cov_j = \sum_{i=1}^B(Y_{ij}^*-Y_{.j}^*)(t_i^*-t_.^*)/B
+hat{cov}_j = \sum_{i=1}^B(Y_{ij}^*-Y_{.j}^*)(t_i^*-t_.^*)/B
 \]
 with $Y_{.j}^* = \sum_{i=1}^BY_{ij}^*/B$ and $t_.^* = \sum_{i=1}^Bt_{i}^*/B=s(y)$.
 
@@ -195,7 +198,7 @@ reglogitlasso <- function(lambda, dat, start, tol=1e-10, maxiter = 200,...){
   return(res)
 }
 intial = rep(0, dim(dat$X)[2])
-corres <- reglogitlasso(lambda = exp(-10), dat, start = intial,tol=1e-5) 
+# corres <- reglogitlasso(lambda = exp(-10), dat, start = intial,tol=1e-5) 
 # start from -1 to -10
 
 ## pathwise update: outer loop
@@ -210,19 +213,18 @@ path <- function(data,grid){
   }
   return(data.frame(cbind(grid,betas)))
 }
-path.out <- path(dat,grid=exp(seq(-1,-10, length=10))) #100
-colnames(path.out) <- c("grid",colnames(X))
-# plot a path of solutions
-path.plot <- path.out %>%
-  gather(key = par, value = estimate, c(2:dim(path.out)[2])) %>% 
-  ggplot(aes(x = log(grid), y = estimate, group = par, col = par)) +
-  geom_line()+
-  ggtitle("Figure 1: A path of solutions with a sequence of descending lambda's") +
-  xlab("log(Lambda)") + 
-  ylab("Estimate") +
-  theme(legend.position = "right", 
-        legend.text = element_text(size = 6))
-path.plot
+# path.out <- path(dat,grid=exp(seq(-1,-10, length=100)))
+# colnames(path.out) <- c("grid",colnames(X))
+# path.plot <- path.out %>%
+#   gather(key = par, value = estimate, c(2:dim(path.out)[2])) %>% 
+#   ggplot(aes(x = log(grid), y = estimate, group = par, col = par)) +
+#   geom_line()+
+#   ggtitle("Figure 1: A path of solutions with a sequence of descending lambda's") +
+#   xlab("log(Lambda)") + 
+#   ylab("Estimate") +
+#   theme(legend.position = "right", 
+#         legend.text = element_text(size = 6))
+# path.plot
 ```
 
 
@@ -252,25 +254,25 @@ cvresult <- function(dat,grid,K){
   }
   return(cbind(grid,cv.error,cv.se))
 }
-result <- cvresult(dat,grid=exp(seq(-1,-10, length=10)),K=5) #100
-best.lambda <- result[which.min(result[,2]),1]
+# result <- cvresult(dat,grid=exp(seq(-1,-10, length=100)),K=5) 
+# best.lambda <- result[which.min(result[,2]),1]
+# result <- data.frame(result)
+# cv.plot <- 
+#     ggplot(result, aes(x=log(result$grid), y=result$cv.error)) + 
+#     geom_errorbar(aes(ymin=result$cv.error-result$cv.se, ymax=result$cv.error+result$cv.se),
+#                   colour=1) +
+#     geom_line() +
+#     geom_point(size=0.8,colour = 4) +
+#     ggtitle("Figure 2: Lasso regression by 5 fold cross validation")+
+#     xlab("log(Lambda)") + ylab("MSE") +
+#     geom_vline(xintercept = log(best.lambda),col=3,lty=3) +
+#     annotate("text", log(best.lambda), 0.1, label = paste("best log(lambda) = ", round(log(best.lambda), 3), sep = ""))
+# cv.plot
 
-result <- data.frame(result)
-cv.plot <- 
-    ggplot(result, aes(x=log(result$grid), y=result$cv.error)) + 
-    geom_errorbar(aes(ymin=result$cv.error-result$cv.se, ymax=result$cv.error+result$cv.se),
-                  colour=1) +
-    geom_line() +
-    geom_point(size=0.8,colour = 4) +
-    ggtitle("Figure 2: Lasso regression by 5 fold cross validation")+
-    xlab("log(Lambda)") + ylab("MSE") +
-    geom_vline(xintercept = log(best.lambda),col=3,lty=3) +
-    annotate("text", log(best.lambda), 0.1, label = paste("best log(lambda) = ", round(log(best.lambda), 3), sep = ""))
-cv.plot
 #### final estimation for beta
-finlasso <- as.matrix(path(dat,grid = exp(seq(-1,log(best.lambda), length=10)))) #100
-colnames(finlasso) <- c("grid",colnames(X))
-lasso.beta <- finlasso[nrow(finlasso),2:dim(finlasso)[2]]
+# finlasso <- as.matrix(path(dat,grid = exp(seq(-1,log(best.lambda), length=100))))
+# colnames(finlasso) <- c("grid",colnames(X))
+# lasso.beta <- finlasso[nrow(finlasso),2:dim(finlasso)[2]]
 ```
 
 
@@ -282,7 +284,7 @@ We are still dealing with regularized lasso with this dataset, we wanted to appl
 ```{r}
 ############ get the estimate and se by smmothing bootstrap
 n <- length(y)
-B <- 10 #5000
+B <- 5000
 mse <- function(model){
   temp <- predict(model,dataX)
   ynew <- exp(temp)/(1+exp(temp))
@@ -304,26 +306,26 @@ taskFun <- function(){
   model[[2]] <- glmnet(x=boot.x, y=boot.y,alpha=0, family="binomial",lambda = rid.lambda)
   model[[3]] <- ncvreg(X=boot.x, y=boot.y,penalty="SCAD", family="binomial",lambda = scad.lambda)
   model[[4]]<- ncvreg(X=boot.x, y=boot.y,penalty="MCP", family="binomial",lambda = mcp.lambda)
-  min <- which.min(unlist(lapply(1:4, function(x)mse(model[[x]]))))
+  min <- which.min(unlist(lapply(1:4, function(x)mse(model[[x]]))))[1]
   model.chosen <- min
   coef.chosen <- as.vector(coef(model[[min]]))
   subject.1 <- predict(model[[min]],dataX,type = "response")[1]
   return(cbind(model.chosen,subject.1,t(coef.chosen),t(ynum)))
 }
-out <- foreach(i = 1:B, .combine = rbind) %dopar% taskFun()
-colnames(out) <- c("model","subject.1","intercpt",colnames(dataX),1:n)
-model <- data.frame(out)%>%
-  mutate(.,reg.model = ifelse(model ==1,"Lasso",
-                                     ifelse(model==2, "Ridge",
-                                            ifelse(model==3,"SCAD","MCP"))))%>%
-  select(.,-c(model))%>%
-  group_by(.,reg.model)%>%
-  summarise(.,percent = n()/B)
+# out <- foreach(i = 1:B, .combine = rbind) %dopar% taskFun()
+# colnames(out) <- c("model","subject.1","intercpt",colnames(dataX),1:n)
+# model <- data.frame(out)%>%
+#   mutate(.,reg.model = ifelse(model ==1,"Lasso",
+#                                      ifelse(model==2, "Ridge",
+#                                             ifelse(model==3,"SCAD","MCP"))))%>%
+#   dplyr::select(.,-c(model))%>%
+#   group_by(.,reg.model)%>%
+#   summarise(.,percent = n()/B)
 # output-model
-kable(model, "latex", caption = "Bootstrap for model selection based on mse criteria", booktabs = T) %>% 
-  kable_styling(latex_options = c("hold_position", "scale_down")) %>%
-  add_footnote(c("B=10000"),
-               notation = "alphabet")   
+# kable(model, "latex", caption = "Bootstrap for model selection based on mse criteria", booktabs = T) %>% 
+#   kable_styling(latex_options = c("hold_position", "scale_down")) %>%
+#   add_footnote(c("B=10000"),
+#                notation = "alphabet")   
 ```
 
 ### Cross validation for model prediction comparison
@@ -354,7 +356,8 @@ cvcomp <- function(dat,K){
   }
   return(cbind(mean(cv.error.1),mean(cv.error.2)))
 }
-cvresult <- cvcomp(dat,K=5)
+cvresult <- round(cvcomp(dat,K=5),4)
+cvresult
 ```
 
 
@@ -362,26 +365,27 @@ cvresult <- cvcomp(dat,K=5)
 #### Inference for smoothed bootstrap
 ```{r}
 # plot for subject one
-subject.1 <- unlist(lapply(out$subject,mean))
-ggplot() + aes(subject.1)+ geom_histogram(colour="black", fill="white")
-## inference
-ycount <- out[,c((3+1+dim(dataX)[2]):(3+n+dim(dataX)[2]))]
-meany <- apply(ycount, 2, mean)
-par <- dim(dataX)[2]+1
-coef <- round(apply(out[,c(3:(3+dim(dataX)[2]))],2,mean),4)
-sd <- vector()
-for (k in 1:par) {
-  covj <- t(ycount-as.vector(meany)%*%t(rep(1,B)))%*%(out[,c(2+k)]-rep(coef[k],B))
-  sd[k] <- round(sqrt((t(covj)%*%covj)/B),4)
-}
-coeff <- cbind(coef,sd,pnorm(coef/sd))
-colnames(coeff) <- c("coefficient","standard.err", "p-val")
-rownames(coeff) <- c("intercept", colnames(dataX))
+# subject.1 <- unlist(lapply(out[,2],mean))
+# ggplot() + aes(subject.1)+ geom_histogram(colour="black", fill="white")
 
-kable(coeff, "latex", caption = "Smoothed bootstrap estimation for best model", booktabs = T) %>% 
-  kable_styling(latex_options = c("hold_position", "scale_down")) %>%
-  add_footnote(c("B=10000"),
-               notation = "alphabet")  
+## inference
+# ycount <- out[,c((3+1+dim(dataX)[2]):(3+n+dim(dataX)[2]))]
+# meany <- apply(ycount, 2, mean)
+# par <- dim(dataX)[2]+1
+# coef <- round(apply(out[,c(3:(3+dim(dataX)[2]))],2,mean),4)
+# sd <- vector()
+# for (k in 1:par) {
+#   covj <- t(ycount-(as.vector(meany)%*%t(rep(1,B))))%*%(out[,c(2+k)]-rep(coef[k],B))
+#   sd[k] <- round(sqrt((t(covj)%*%covj)/B),4)
+# }
+# coeff <- cbind(coef,sd,pnorm(coef/sd))
+# colnames(coeff) <- c("coefficient","standard.err", "p-val")
+# rownames(coeff) <- c("intercept", colnames(dataX))
+# 
+# kable(coeff, "latex", caption = "Smoothed bootstrap estimation for best model", booktabs = T) %>% 
+#   kable_styling(latex_options = c("hold_position", "scale_down")) %>%
+#   add_footnote(c("B=5000"),
+#                notation = "alphabet")  
 ```
 
 
