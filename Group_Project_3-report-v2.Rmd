@@ -1,0 +1,462 @@
+---
+title: "A study of bootstrapping on developing classification model"
+author: "Xinlei Chen, Guojing Wu and Yujing Yao"
+abstract: "This report discusses a study of bootstrap to develop classification model based on the proteins expression levels. Our goal is to build a predictive model based on logistic regression to facilicate down syndrome diagnosis, and we compared methods including and Pathwise Coordinate Descent with regularized logistic regression and smoothed bootstrap estimation. Our result shows that ....."
+thanks:
+keywords: "Logistic Regression; Optimization; Pathwise Coordinate Descent; Regularized Logistic Regression; Smoothed bootstrap"
+date: "April 19, 2019"
+output:
+    pdf_document:
+    highlight: default
+    number_sections: true
+    citation_package:
+    keep_tex: false
+    fig_caption: true
+    latex_engine: pdflatex
+fontsize: 10pt
+geometry: margin=1in
+bibliography:
+biblio-style:
+header-includes:
+- \usepackage{indentfirst}
+- \usepackage{graphicx}
+- \usepackage{geometry}
+- \usepackage{subfigure}
+- \usepackage{amsmath}
+- \usepackage{listings}
+- \usepackage{tikz}
+- \usetikzlibrary{matrix}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE, comment = "")
+library(tidyverse)
+# plot
+library(ggcorrplot)
+library(ggpubr) 
+library(grid)
+library(gridExtra)
+# table
+library(kableExtra) 
+# lasso
+library(glmnet) 
+# parallel program
+library(parallel)
+library(doParallel)
+library(foreach)
+library(iterators)
+nCores <- 4 
+registerDoParallel(nCores) 
+set.seed(99999)
+options(knitr.table.format = "latex")
+```
+
+## Background
+
+The data \textit{Down.csv} consists of the expression levels of 77 proteins/protein modifications that produced detectable signals in the nuclear fraction of cortex. It has 1080 rows and 79 columns. The first column \textbf{MouseID} identifies individual mice; The  column \textbf{2-78} are values of expression levels of 77 proteins. Column 79 indicates whether the mouse is a control or has Down syndrome. The goal is to develop classification model based on the proteins expression levels.  
+
+We found that data is missing for some of the covariates, so we deleted those high missing rate(>20\%). For those covariates with missing rate < 20\%, we assumed them to be missing completely at random(MCAR), so we would analyze the complete cases in the following.
+
+
+!!!need a missing plot here 
+!!! explain why we need to apply regulized method: singular
+
+\textbf{Figure 1: missingness plot and multicollinearity plot of the dataset}
+
+```{r dpi = 300}
+oridata <- read.csv("Down.csv")
+mydata <- oridata%>%
+  dplyr::select(.,-c(BAD_N,BCL2_N,H3AcK18_N,EGR1_N,H3MeK4_N))%>%
+  filter(complete.cases(.))
+### missing-------
+n <- dim(mydata)[1]
+ncol <- dim(mydata)[2]
+list <- c(2:(ncol - 1))
+namesX <- names(mydata)[-c(1,ncol)]
+# standardize
+dataX <- do.call(cbind, lapply(list, function(x) (mydata[,x] - mean(mydata[,x]))/sd(mydata[,x]))) 
+colnames(dataX) <- namesX
+# design matrix
+X <- data.frame(dataX) %>% 
+  mutate(., intercept = 1)
+# response
+y <- as.vector(ifelse(mydata[,ncol] == "Down syndrome", 1, 0))
+dat <- list(y = y, X = as.matrix(X))
+# check correlation
+corplot <- cor(dataX) %>%
+  ggcorrplot(.,ggtheme = ggplot2::theme_gray,
+             colors = c("#6D9EC1", "white", "#E46726"),
+             tl.cex = 6)
+grid.arrange(corplot,ncol=1)
+```
+
+
+## Method
+
+### Logistic Regression
+
+Let $y$ be the vector of $n$ response random variable, $X$ denote the $n\times p$ design matrix ($X_{i}$ denote the $i$th row) and $\beta$ denote the $p\times 1$ coefficient. Let $\eta=E(y) =X\beta$ and given the link function as $g(\eta) = \log\frac{\eta}{1-\eta}$, we have the logistic regression model written as: 
+
+$$\log(\frac{\eta}{1-\eta}) = X\beta$$
+
+The likelihood of this logistic regression is:
+$$L(\beta; X, y) = \prod_{i=1}^n \{(\frac{\exp(X_{i}\beta)}{1+\exp(X_{i}\beta)})^{y_i}(\frac{1}{1+\exp(X_{i}\beta)})^{1-y_i}\}$$
+Maximizing the likelihood is equivalent to maximizing the log likelihood:
+$$
+\begin{aligned}
+l(\beta) 
+& = \sum_{i=1}^n \{y_i(X_{i}\beta)-\log(1+\exp(X_{i}\beta))\}
+\end{aligned}
+$$
+
+
+### Pathwise Coordinate Descent with regularized logistic regression
+
+Regularization is the common variable selection approaches for high-dimensional covariates. The best known Regularization is called LASSO, which is to add $L1$-penalty to the objective function. In the context of logistic regression, we are aiming to maximize the penalized log likelihood:
+$$\max_{\beta \in \mathbb{R}^{p+1}} \frac{1}{n}\sum_{i=1}^n  \{y_i(X_{i}\beta)-\log(1+\exp(X_{i}\beta))\}-\lambda \sum_{j=0}^p |\beta_j|$$
+for some $\lambda \geq 0$. Here the $x_{i,j}$ are standardized so that $\sum_{i}x_{i,j}/n = 0$ and $\sum_{i}x_{i,j}^{2}/n = 0$.
+
+The Newton algorithm for maximizing the log likelihood amounts to interatively reweighted least squares. Hence if the current estimate of the parameter is $\tilde{\beta}$, we can form a quardratic approximation to the negative log likelihood by taylor expansion around the current estimate, which is:
+$$
+f(\beta) = -\frac{1}{2n}\sum_{i=1}^{n}w_i(z_{i} - \sum_{j=0}^{p}x_{i,j}\beta_{j})^{2} + C(\tilde{\beta})
+$$
+where 
+\[
+\begin{aligned}
+& z_i = \tilde{\beta}_0+ x_i^T\tilde{\beta} + \frac{y_i-\tilde{p}(x_i)}{\tilde{p}(x_i)(1-\tilde{p}(x_i))}, \text{working response}\\
+& w_i = \tilde{p}(x_i)(1-\tilde{p}(x_i)), \text{working weights}
+\end{aligned}
+\]
+and $\tilde{p}(x_i)$ is evaluated at the current parameters, the last term is constant. The Newton update is obtained by minimizing the $f(\beta)$
+
+The coordinate descent algorithm to solve the penalized weighted least squares problem 
+$$\min_{\beta \in \mathbb{R}^{p+1}} \{ -f(\beta) + \lambda P(\beta)\}$$
+The above amounts to a sequence of nested loops:
+
+- outer loop: start with $\lambda$ that all the coefficients are forced to be zerp, then decrement $\lambda$;
+- middle loop: update the quardratic $f(\beta)$ using the current estimates of parameters;
+- inner loop: run the coordinate descent algorithm on the penalized weighted least square problem.
+
+In our problem, care is taken to avoid coefficients diverging in order to achieve fitted probabilities of 0 or 1 which is the warning message by the R package. When a probability with $\epsilon = 1e-5$ of 1, we set it to 1, and set the weights to $\epsilon$. 0 is treated similarly.
+
+
+### Smoothing bootstrap and inference
+
+Classical statistical theory ignores model selection in assessing estimation accuracy. Here we consider bootstrap methods for computing standard errors and confidence intervals that take model selection into account. The methodology involves bagging, also known as bootstrap smoothing, to tame the erratic discontinuities of selection-based estimators. 
+
+Point estimation:
+
+- First we need to prepare a couple of candidate models 
+- for each bootstrap in bootstrap with B times, select the best model and get estimates for the coefficient denoted as $t(y^*)$
+- smooth $\hat{\mu} = t(y)$ by averaging over the bootstrap replications, defining
+\[
+\tilde{\mu} = s(y) = \frac{1}{B}\sum_{i=1}^B t(y^*)
+\]
+
+Bootstrap smoothing (Efron and Tibshirani 1996), a form of model averaging, is better known as "bagging" in the prediction literature. 
+
+smoothed interval
+In addition to the percentile confidence interval, the nonparametric delta-method estimate of standard deviation for $s(y)$ in the nonideal case 
+\[
+\tilde{sd}_B = [\sum_{i=1}^n\hat{cov}_j^2]^{1/2}
+\]
+where 
+\[
+hat{cov}_j = \sum_{i=1}^B(Y_{ij}^*-Y_{.j}^*)(t_i^*-t_.^*)/B
+\]
+with $Y_{.j}^* = \sum_{i=1}^BY_{ij}^*/B$ and $t_.^* = \sum_{i=1}^Bt_{i}^*/B=s(y)$.
+
+## Results
+
+### Pathwise Coordinate Descent Logistic Lasso 
+
+\textbf{Figure 2: Estimation path and cross validation for Pathwise Coordinate Descent Lasso}
+
+```{r, dpi = 300}
+### regulized logistic regression: middle loop and inner loop
+sfun <- function(beta,lambda) sign(beta) * max(abs(beta)-lambda, 0)
+reglogitlasso <- function(lambda, dat, start, tol=1e-10, maxiter = 200,...){
+  p <- dim(dat$X)[2]
+  n <- length(dat$y)
+  betavec <- start
+  i <- 0 
+  loglik <- 0
+  prevloglik <- Inf 
+  res <- c(0, loglik, betavec)
+  while (i < maxiter && abs(loglik - prevloglik) > tol && loglik < Inf) {
+    i <- i + 1 
+    prevloglik <- loglik
+    for (j in 1:p) {
+      u <- dat$X %*% betavec
+      expu <- exp(u) 
+      prob <- expu/(expu+1)
+      w <- prob*(1-prob) 
+      w <- ifelse(abs(w-0) < 1e-5, 1e-5, w)
+      z <- u + (dat$y-prob)/w
+      znoj <- dat$X[,-j] %*% betavec[-j]
+      betavec[j] <- sfun(mean(w*(dat$X[,j])*(z - znoj)), lambda)/(mean(w*dat$X[,j]*dat$X[,j]))
+    }
+    loglik <- sum(w*(z-dat$X %*% betavec)^2)/(2*n) + lambda * sum(abs(betavec))
+    res <- rbind(res, c(i, loglik, betavec))}  
+  return(res)
+}
+intial = rep(0, dim(dat$X)[2])
+# corres <- reglogitlasso(lambda = exp(-10), dat, start = intial,tol=1e-5) 
+# start from -1 to -10
+
+## pathwise update: outer loop
+path <- function(data,grid){
+  start <- rep(0, dim(data$X)[2])
+  betas <- NULL
+  for (x in 1:length(grid)){
+    cor.result <- reglogitlasso(lambda = grid[x],dat = data,start= start)
+    lasbeta <- cor.result[nrow(cor.result),3:dim(cor.result)[2]]
+    start <- lasbeta
+    betas <- rbind(betas,c(lasbeta))
+  }
+  return(data.frame(cbind(grid,betas)))
+}
+# path.out <- path(dat,grid=exp(seq(-1,-10, length=100)))
+# colnames(path.out) <- c("grid",colnames(X))
+path.out <- read.csv("path.out.csv",header = T)%>%
+  dplyr::select(.,-c(1))
+path.plot <- path.out %>%
+  gather(key = par, value = estimate, c(2:dim(path.out)[2])) %>%
+  ggplot(aes(x = log(grid), y = estimate, group = par, col = par)) +
+  geom_line()+
+  ggtitle("Figure 1: A path of solutions with a sequence of descending lambda's") +
+  theme(plot.title = element_text(size = 8),legend.position = "none")+
+  xlab("log(Lambda)") +
+  ylab("Estimate") 
+##### 5-fold cross-validation to choose beta lambda
+cvresult <- function(dat,grid,K){
+  n <- dim(dat$X)[1]
+  folds <- sample(1:K, n, replace=TRUE)
+  start <- rep(0, dim(dat$X)[2])
+  cv.error <- vector()
+  cv.se <- vector()
+  for (x in 1:length(grid)) {
+  cv.errors <- vector()
+  for (i in 1:K){
+    cor.result <- reglogitlasso(lambda = grid[x],dat = list(X=dat$X[folds!=i,],y=dat$y[folds!=i]),
+                                start = start)
+    lasbeta <- cor.result[nrow(cor.result),3:dim(cor.result)[2]]
+    u <- as.matrix(dat$X[folds == i,]) %*% lasbeta
+    expu <- exp(u) 
+    prob <- expu / (1 + expu) 
+    y <- as.vector(dat$y[folds==i])
+    cv.errors[i] = mean((y-prob)^2) 
+  }
+  start <- lasbeta
+  cv.error[x] <- mean(cv.errors)
+  cv.se[x] <- sqrt(var(cv.errors)/K)
+  }
+  return(cbind(grid,cv.error,cv.se))
+}
+# result <- cvresult(dat,grid=exp(seq(-1,-10, length=100)),K=5) 
+# best.lambda <- result[which.min(result[,2]),1]
+best.lambda <- round(0.0004825801 ,6)
+result <- read.csv("cvresult.csv",header = T)%>%
+  dplyr::select(.,-c(1))
+cv.plot <-
+    ggplot(result, aes(x=log(result$grid), y=result$cv.error)) +
+    geom_errorbar(aes(ymin=result$cv.error-result$cv.se, ymax=result$cv.error+result$cv.se),
+                  colour=1) +
+    geom_line() +
+    geom_point(size=0.8,colour = 4) +
+    ggtitle("Figure 2: Lasso regression by 5 fold cross validation")+
+    theme(plot.title = element_text(size = 8))+
+    xlab("log(Lambda)") + ylab("MSE") +
+    geom_vline(xintercept = log(best.lambda),col=3,lty=3) +
+    annotate("text", log(best.lambda)+2, 0.1, label = paste("best log(lambda) = ", round(log(best.lambda), 3), sep = ""))
+grid.arrange(path.plot,cv.plot,ncol=2)
+#### final estimation for beta
+# finlasso <- as.matrix(path(dat,grid = exp(seq(-1,log(best.lambda), length=100))))
+# colnames(finlasso) <- c("grid",colnames(X))
+# lasso.beta <- finlasso[nrow(finlasso),2:dim(finlasso)[2]]
+temp <- read.csv("coeff.csv",header = T)
+lenb <- dim(temp)[1]
+co.fin.beta <- rbind(temp[lenb,],temp[1:(lenb-1),])
+```
+
+\textbf{Fig. 2} shows us that as the $\lambda$ increases, all the variable estimates of parameters shrink accordingly since we penalize all the parameters, though in some. When $\lambda = 0$, the result is the same as least square method and when $\lambda$ is too large, all the estimates of parameters shrink to 0. 
+<!-- The logistic lasso with pathwise coordinate Descent suggests that the penalty term to be `r best.lambda` by 5 fold cross validation based on the dataset. -->
+
+### Model selection based on Smoothed Bootstrap for Logistic Lasso
+
+We are still dealing with regularized lasso with this dataset, we wanted to apply smoothed bootstrap in order to get better estimates and inference result. 
+
+algorithm:
+
+- bootstrap data from the original dataset
+- do cross validation and select the best $\lambda$
+- suggest $\lambda = \frac{1}{B}\sum_{i=1}^B \lambda_i^{(b)}$  bagging?
+
+\textbf{Figure 3: Lambda selection based on Smoothed Bootstrap for Logistic Lasso}
+
+
+```{r, dpi = 300}
+############ get the estimate and se by smmothing bootstrap
+n <- length(y)
+p <- dim(dataX)[2]+1
+B <- 5000
+taskFun <- function(){
+  # interest in: lambda,u_1(plot),beta,betanum, ynum
+  ynum <- vector()
+  betanum <- vector()
+  beta <- vector()
+  bootid <- sample(c(1:n),replace = T)
+  boot.x <- dataX[bootid,]
+  boot.y <- y[bootid]
+  for (j in 1:n) ynum[j] <- sum(j==bootid)
+  min.lambda <- cv.glmnet(x=boot.x, y=boot.y,alpha=1, family="binomial")$lambda.min
+  model <- glmnet(x=boot.x, y=boot.y,alpha=1, family="binomial",lambda = min.lambda)
+  beta <- coef(model)
+  for (k in 1:p) betanum[k] <- I(coef(model)[k]!=0)
+  sub1 <- predict(model,dataX)[1] #,type = "response"
+  return(cbind(min.lambda,sub1,t(beta),t(betanum),t(ynum)))
+}
+# out <- foreach(i = 1:B, .combine = rbind) %dopar% taskFun()
+# get sparse matrix, transform into data frame
+out.df <- read.csv("bootstrap.csv",header = T)%>%
+  dplyr::select(.,-c(1))
+colnames(out.df) <- c("min.lambda","subject.1","intercpt",colnames(dataX),
+                   sprintf("b[%d]",seq(1:p)),sprintf("n[%d]",seq(1:n)))
+best.lambda.s <- mean(out.df$min.lambda)
+# plot of expected value of subject 1
+model <- glmnet(x=dataX, y=y,alpha=1, family="binomial",lambda = best.lambda)
+sub1 <- predict(model,dataX)[1]#,type = "response"
+s1 <- ggplot(out.df,aes(x=out.df$subject.1)) + 
+  geom_histogram(colour="black", fill="white")+
+  #geom_density()
+  ggtitle("Figure 1: Expected value of subject 1 from smoothed bootstrap")+
+  theme(plot.title = element_text(size = 8))+
+  xlab("Expected value of subject 1") + ylab("Density") +
+  geom_vline(xintercept = mean(out.df$subject.1),col=2,lty=2) + 
+  geom_vline(xintercept = sub1,col=3,lty=3) 
+s2 <- ggplot(out.df,aes(x=out.df$min.lambda)) +
+  geom_histogram(colour="black", fill="white")+
+  #geom_density()
+  ggtitle("Figure 1: penalty term from smoothed bootstrap")+
+  theme(plot.title = element_text(size = 8))+
+  xlab("Lambda") + ylab("Density") +
+  geom_vline(xintercept = best.lambda.s,col=2,lty=2) + 
+  geom_vline(xintercept = best.lambda,col=3,lty=3) 
+grid.arrange(s1+
+  annotation_custom(grid.text(paste("Expected value from data= ", round(sub1, 4), sep = ""),
+                              x=0.5,y=0.5, hjust=0,
+                   gp=gpar(col="firebrick",fontsize=6, fontface="italic")))+
+  annotation_custom(grid.text(paste("Expected value from bootstrap= ",
+                                    round(mean(out.df$subject.1), 4), sep = ""),
+                              x=0.3,y=0.6, hjust=0,
+                   gp=gpar(col="firebrick",fontsize=6, fontface="italic"))),
+             s2+ 
+  annotation_custom(grid.text(paste("Lambda from data= ", round(best.lambda, 6), sep = ""),
+                              x=0.2,y=0.5, hjust=0,
+                           gp=gpar(col="firebrick",fontsize=6, fontface="italic")))+
+  annotation_custom(grid.text( paste("Lambda from smoothed bootstrap = ", 
+                                      round(best.lambda.s, 6),sep = ""),
+                                x=0.1,y=0.6, hjust=0,
+                           gp=gpar(col="firebrick",fontsize=6, fontface="italic"))),
+  ncol=2)
+```
+
+### Cross validation for model prediction comparison
+
+We used 10 fold cross-validation to compare two different models, one is with $\lambda$ selected from data, the other is selected from the bootstrap.
+
+```{r}
+################ cross validation for comparison of prediction error
+cvcomp <- function(dat,K){
+  n <- dim(dat$X)[1]
+  folds <- sample(1:K, n, replace=TRUE)
+  start <- rep(0, dim(dat$X)[2])
+  cv.error.1 <- vector()
+  cv.error.2 <- vector()
+  cv.mse.1 <- vector()
+  cv.mse.2 <- vector()
+  for (i in 1:K){
+    cv.x <- dat$X[folds!=i,]
+    cv.y <- dat$y[folds!=i]
+    obs <- glmnet(x=dat$X[folds!=i,],y=dat$y[folds!=i], alpha=1,family="binomial",lambda = best.lambda)
+    smooth <- glmnet(x=dat$X[folds!=i,],y=dat$y[folds!=i], alpha=1,family="binomial",lambda = best.lambda.s)
+    y.data <- predict(obs,dat$X[folds == i,],type = "response")>0.5
+    y.smooth <- predict(smooth,dat$X[folds == i,],type = "response")>0.5
+    y.data2 <- predict(obs,dat$X[folds == i,],type = "response")
+    y.smooth2 <- predict(smooth,dat$X[folds == i,],type = "response")
+    # misclassification rate
+    cv.error.1[i] = sum(y.data!=dat$y[folds == i])/length(y[folds == i]) 
+    cv.error.2[i] = sum(y.smooth!=dat$y[folds == i])/length(y[folds == i]) 
+    # mse
+    cv.mse.1[i] = mean((dat$y[folds == i]-y.data2)^2)
+    cv.mse.2[i] = mean((dat$y[folds == i]-y.smooth2)^2)
+  }
+  return(list(error = cbind(mean(cv.error.1),mean(cv.error.2)),
+              mse = cbind(mean(cv.mse.1),mean(cv.mse.2))))
+}
+cvresult <- rbind(round(cvcomp(dat,K=10)$error,4),round(cvcomp(dat,K=10)$mse,4))
+colnames(cvresult) <- c("Penalty chosen by data","Penalty selected from smoothed bootstrap")
+rownames(cvresult) <- c("Misclassification rate","Mean squred error")
+kable(t(cvresult), "latex", caption = "The comparison of performance for two models", booktabs = T) %>% 
+  kable_styling(latex_options = c("hold_position", "scale_down")) %>%
+  add_footnote(c("Dataset: Proteins expression levels of Down syndrome"),
+               notation = "alphabet") 
+```
+
+
+#### Significant random variable selection from smoothed bootstrap
+
+for question 4, two method, 
+1-select covariates based on number of chosen, 
+2-do hypothesis testing, select significant covariates.
+
+```{r}
+## select beta based on number of chosen
+# colnames(out.df) <- c("min.lambda","subject.1","intercpt",colnames(dataX),
+#                    sprintf("b[%d]",seq(1:p)),sprintf("n[%d]",seq(1:n)))
+betanum <- out.df[,c((2+p+1):(2+p+p))]
+betachosen <- round(t(apply(betanum,2,mean)),2)
+## inference-hypothesis testing
+betacoeff <- out.df[,c((2+1):(2+p))]
+ynum <- out.df[,c((2+2*p+1):(2+2*p+n))]
+meany <- apply(ynum, 2, mean)
+coef <- round(apply(betacoeff, 2, mean),4)
+sd <- vector()
+for (k in 1:p) {
+  covj <- (t(ynum)-(as.vector(meany)%*%t(rep(1,B))))%*%(betacoeff[,k]-rep(coef[k],B))
+  sd[k] <- round(sqrt((t(covj)%*%covj))/B,4)
+}
+coeff <- cbind(coef,sd)
+newcf <- round(cbind(lower.new = coef -1.96*sd,upper.new = coef +1.96*sd),4)
+cf <- round(cbind(lower = apply(betacoeff,2,quantile,0.025),
+                  upper = apply(betacoeff,2,quantile,0.975)),4)
+est.result <- cbind(origin =round(as.vector(co.fin.beta[,2]),4), 
+                    prob = as.vector(betachosen),
+                    coeff,cf,newcf)
+rownames(est.result) <- c("Intercept", colnames(dataX))
+kable(est.result[c(1:35),], "latex", caption = "Smoothed bootstrap estimation for best model(1)", booktabs = T) %>%
+  kable_styling(latex_options = c("hold_position", "scale_down"),
+                font_size = 6,full_width = F) %>%
+  add_footnote(c("Bootstap time=5000"),
+               notation = "alphabet")
+
+kable(est.result[-c(1:35),], "latex", caption = "Smoothed bootstrap estimation for best model(2)", booktabs = T) %>%
+  kable_styling(latex_options = c("hold_position", "scale_down"),
+                font_size = 6,full_width = F) %>%
+  add_footnote(c("Bootstap time=5000"),
+               notation = "alphabet")
+```
+
+
+## Conclusions
+
+
+## References
+\begin{enumerate}
+\item[1] Efron, Bradley. "Estimation and accuracy after model selection." Journal of the American Statistical Association 109.507 (2014): 991-1007.
+\end{enumerate}
+
+
+## Appendix A
+```{r, ref.label=knitr::all_labels(),echo=TRUE,eval=FALSE}
+```
