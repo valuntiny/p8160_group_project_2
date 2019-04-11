@@ -447,6 +447,9 @@ kable(est.result[-c(1:35),], "latex", caption = "Smoothed bootstrap estimation f
                notation = "alphabet")
 ```
 
+Chosen probability greater than 80\% will be considered as important;
+Chosen probability greater than 96\% will be considered as significant(two exceptions);
+Chosen probability greater than 96\% and confidence interval without zero might be a good choice.
 
 ## Conclusions
 
