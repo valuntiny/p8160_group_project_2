@@ -10,15 +10,14 @@ knitr::opts_chunk$set(echo = FALSE)
 
 ## Introduction
 
-- **Group project 2:** optimization algorithms on a breast cancer diagnosis dataset
+- **Group project 2:** Optimization algorithms on a breast cancer diagnosis dataset
 
-- **Group project 3:** bootstrapping on developing classification model
+- **Group project 3:** Bootstrapping on developing classification model
 
 ## Breast Cancer Data
 
-- **Variable Selection:** reduce multicollinearity based on both correlation coefficient and eigenvalue of correlation matrix
-
-- 18 variables remain
+- **Amin: ** Build a predictive model based on logistic regression to faciliate cancer diagnosis, and we compared methods including Newton Raphson, Gradient Decent with general logistic regression and Pathwise Coordinate Descent with regularized logistic regression
+- **Variable Selection:** Reduce multicollinearity based on both correlation coefficient and eigenvalue of correlation matrix (18 variables remain)
 
 ## Logistic Model with Newton-Raphson
 
@@ -110,17 +109,17 @@ for some $\lambda \geq 0$
 
 
 
-
-## Estimation Path
-
-
-
-
-## Cross validation for LASSO
+## Result
+**Estimation Path**
 
 
 
-## Model Comparison
+##
+**Cross validation for LASSO**
+
+
+##
+**Model Comparison**
 
 
 
@@ -131,3 +130,28 @@ for some $\lambda \geq 0$
 
 
 ## Down Syndrome Data
+
+- **Aim: ** Build a predictive model based on logistic regression to faciliate down syndrome diagnosis, and compared methods including and Pathwise Coordinate Descent with regularized logistic regression and smoothed bootstrap estimation.
+- **Variable Selection: ** Delete variables with high missing rate $(\geq 20\%)$
+
+## Methods
+
+- Pathwise coordinate descent logistic-LASSO
+- Bootstrap-smoothing approach
+
+## Result
+
+**Pathwise coordinate descent logistic-LASSO**
+
+
+
+
+##
+**Model selection based on Smoothed Bootstrap for Logistic Lasso**
+
+
+
+##
+**Significant random variable selection from smoothed bootstrap**
+
+## Conclusion
