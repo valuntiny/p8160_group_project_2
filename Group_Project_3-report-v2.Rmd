@@ -45,29 +45,42 @@ library(parallel)
 library(doParallel)
 library(foreach)
 library(iterators)
-nCores <- 4 
+nCores <- 3
 registerDoParallel(nCores) 
 set.seed(99999)
 options(knitr.table.format = "latex")
+theme_set(theme_bw())
+```
+
+```{r}
+oridata <- read.csv("Down.csv")
+mydata <- oridata%>%
+  dplyr::select(.,-c(BAD_N,BCL2_N,H3AcK18_N,EGR1_N,H3MeK4_N))%>%
+  filter(complete.cases(.))
 ```
 
 ## Background
 
 The data \textit{Down.csv} consists of the expression levels of 77 proteins/protein modifications that produced detectable signals in the nuclear fraction of cortex. It has 1080 rows and 79 columns. The first column \textbf{MouseID} identifies individual mice; The  column \textbf{2-78} are values of expression levels of 77 proteins. Column 79 indicates whether the mouse is a control or has Down syndrome. The goal is to develop classification model based on the proteins expression levels.  
 
-We found that data is missing for some of the covariates, so we deleted those high missing rate(>20\%). For those covariates with missing rate < 20\%, we assumed them to be missing completely at random(MCAR), so we would analyze the complete cases in the following.
+We found that data is missing for some of the covariates, so we deleted those high missing rate(>15\%). For those covariates with missing rate < 15\%, we assumed them to be missing completely at random(MCAR), so we would analyze the complete cases in the following (Fig 1).
 
+\textbf{Figure 1: proteins' missing percentage}
 
-!!!need a missing plot here 
+```{r, dpi = 300}
+x <- apply(is.na(oridata[,2:78]), 2, sum) / nrow(oridata)
+tibble(name = names(x), percentage = as.numeric(x)) %>% 
+  ggplot(aes(x = name, y = percentage)) + 
+  geom_bar(stat = "identity") +
+  labs(x = "proteins", y = "missing percentage") + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 7))
+```
+
 !!! explain why we need to apply regulized method: singular
 
-\textbf{Figure 1: missingness plot and multicollinearity plot of the dataset}
+\textbf{Figure 2: missingness plot and multicollinearity plot of the dataset}
 
 ```{r dpi = 300}
-oridata <- read.csv("Down.csv")
-mydata <- oridata%>%
-  dplyr::select(.,-c(BAD_N,BCL2_N,H3AcK18_N,EGR1_N,H3MeK4_N))%>%
-  filter(complete.cases(.))
 ### missing-------
 n <- dim(mydata)[1]
 ncol <- dim(mydata)[2]
@@ -86,7 +99,8 @@ dat <- list(y = y, X = as.matrix(X))
 corplot <- cor(dataX) %>%
   ggcorrplot(.,ggtheme = ggplot2::theme_gray,
              colors = c("#6D9EC1", "white", "#E46726"),
-             tl.cex = 6)
+             tl.cex = 4, 
+             tl.srt = 90)
 grid.arrange(corplot,ncol=1)
 ```
 
@@ -162,7 +176,7 @@ In addition to the percentile confidence interval, the nonparametric delta-metho
 \]
 where 
 \[
-hat{cov}_j = \sum_{i=1}^B(Y_{ij}^*-Y_{.j}^*)(t_i^*-t_.^*)/B
+\hat{cov}_j = \sum_{i=1}^B(Y_{ij}^*-Y_{.j}^*)(t_i^*-t_.^*)/B
 \]
 with $Y_{.j}^* = \sum_{i=1}^BY_{ij}^*/B$ and $t_.^* = \sum_{i=1}^Bt_{i}^*/B=s(y)$.
 
@@ -170,7 +184,7 @@ with $Y_{.j}^* = \sum_{i=1}^BY_{ij}^*/B$ and $t_.^* = \sum_{i=1}^Bt_{i}^*/B=s(y)
 
 ### Pathwise Coordinate Descent Logistic Lasso 
 
-\textbf{Figure 2: Estimation path and cross validation for Pathwise Coordinate Descent Lasso}
+\textbf{Figure 3: Pathwise Coordinate Descent Lasso}
 
 ```{r, dpi = 300}
 ### regulized logistic regression: middle loop and inner loop
@@ -200,7 +214,7 @@ reglogitlasso <- function(lambda, dat, start, tol=1e-10, maxiter = 200,...){
     res <- rbind(res, c(i, loglik, betavec))}  
   return(res)
 }
-intial = rep(0, dim(dat$X)[2])
+# intial = rep(0, dim(dat$X)[2])
 # corres <- reglogitlasso(lambda = exp(-10), dat, start = intial,tol=1e-5) 
 # start from -1 to -10
 
@@ -224,7 +238,7 @@ path.plot <- path.out %>%
   gather(key = par, value = estimate, c(2:dim(path.out)[2])) %>%
   ggplot(aes(x = log(grid), y = estimate, group = par, col = par)) +
   geom_line()+
-  ggtitle("Figure 1: A path of solutions with a sequence of descending lambda's") +
+  ggtitle("A) A path of solutions with a sequence of descending lambda's") +
   theme(plot.title = element_text(size = 8),legend.position = "none")+
   xlab("log(Lambda)") +
   ylab("Estimate") 
@@ -264,7 +278,7 @@ cv.plot <-
                   colour=1) +
     geom_line() +
     geom_point(size=0.8,colour = 4) +
-    ggtitle("Figure 2: Lasso regression by 5 fold cross validation")+
+    ggtitle("B) Lasso regression by 5 fold cross validation")+
     theme(plot.title = element_text(size = 8))+
     xlab("log(Lambda)") + ylab("MSE") +
     geom_vline(xintercept = log(best.lambda),col=3,lty=3) +
@@ -279,8 +293,15 @@ lenb <- dim(temp)[1]
 co.fin.beta <- rbind(temp[lenb,],temp[1:(lenb-1),])
 ```
 
-\textbf{Fig. 2} shows us that as the $\lambda$ increases, all the variable estimates of parameters shrink accordingly since we penalize all the parameters, though in some. When $\lambda = 0$, the result is the same as least square method and when $\lambda$ is too large, all the estimates of parameters shrink to 0. 
+\textbf{Fig. 3A} shows us that as the $\lambda$ increases, all the variable estimates of parameters shrink accordingly since we penalize all the parameters, though in some. When $\lambda = 0$, the result is the same as least square method and when $\lambda$ is too large, all the estimates of parameters shrink to 0. \textbf{Fig. 3B} shows us the cross validation result for choosing the best $\lambda$. 
 <!-- The logistic lasso with pathwise coordinate Descent suggests that the penalty term to be `r best.lambda` by 5 fold cross validation based on the dataset. -->
+
+```{r}
+# compare the result of our methods and glmnet
+logmod <- glmnet(dat$X[,-dim(dat$X)[2]], y = dat$y, alpha=1, family="binomial",lambda = best.lambda)
+res.comp <- cbind(co.fin.beta, as.matrix(coef.glmnet(logmod)))
+names(res.comp) = c("protein", "LASSO", "glmnet")
+```
 
 ### Model selection based on Smoothed Bootstrap for Logistic Lasso
 
@@ -292,8 +313,7 @@ algorithm:
 - do cross validation and select the best $\lambda$
 - suggest $\lambda = \frac{1}{B}\sum_{i=1}^B \lambda_i^{(b)}$  bagging?
 
-\textbf{Figure 3: Lambda selection based on Smoothed Bootstrap for Logistic Lasso}
-
+\textbf{Figure 4: Lambda selection based on Smoothed Bootstrap for Logistic Lasso}
 
 ```{r, dpi = 300}
 ############ get the estimate and se by smmothing bootstrap
@@ -317,6 +337,12 @@ taskFun <- function(){
   return(cbind(min.lambda,sub1,t(beta),t(betanum),t(ynum)))
 }
 # out <- foreach(i = 1:B, .combine = rbind) %dopar% taskFun()
+# each row of output basicly tells you:
+#   the best lambda
+#   prediction of sub1
+#   all the estimated beta
+#   whether the covariate been chose or not
+#   which obs been chose
 # get sparse matrix, transform into data frame
 out.df <- read.csv("bootstrap.csv",header = T)%>%
   dplyr::select(.,-c(1))
@@ -329,7 +355,7 @@ sub1 <- predict(model,dataX)[1]#,type = "response"
 s1 <- ggplot(out.df,aes(x=out.df$subject.1)) + 
   geom_histogram(colour="black", fill="white")+
   #geom_density()
-  ggtitle("Figure 1: Expected value of subject 1 from smoothed bootstrap")+
+  ggtitle("A) Expected value of subject 1 from smoothed bootstrap")+
   theme(plot.title = element_text(size = 8))+
   xlab("Expected value of subject 1") + ylab("Density") +
   geom_vline(xintercept = mean(out.df$subject.1),col=2,lty=2) + 
@@ -337,7 +363,7 @@ s1 <- ggplot(out.df,aes(x=out.df$subject.1)) +
 s2 <- ggplot(out.df,aes(x=out.df$min.lambda)) +
   geom_histogram(colour="black", fill="white")+
   #geom_density()
-  ggtitle("Figure 1: penalty term from smoothed bootstrap")+
+  ggtitle("B) penalty term from smoothed bootstrap")+
   theme(plot.title = element_text(size = 8))+
   xlab("Lambda") + ylab("Density") +
   geom_vline(xintercept = best.lambda.s,col=2,lty=2) + 
@@ -345,19 +371,19 @@ s2 <- ggplot(out.df,aes(x=out.df$min.lambda)) +
 grid.arrange(s1+
   annotation_custom(grid.text(paste("Expected value from data= ", round(sub1, 4), sep = ""),
                               x=0.5,y=0.5, hjust=0,
-                   gp=gpar(col="firebrick",fontsize=6, fontface="italic")))+
+                   gp=gpar(col=3,fontsize=6, fontface="italic")))+
   annotation_custom(grid.text(paste("Expected value from bootstrap= ",
                                     round(mean(out.df$subject.1), 4), sep = ""),
                               x=0.3,y=0.6, hjust=0,
-                   gp=gpar(col="firebrick",fontsize=6, fontface="italic"))),
+                   gp=gpar(col=2,fontsize=6, fontface="italic"))),
              s2+ 
   annotation_custom(grid.text(paste("Lambda from data= ", round(best.lambda, 6), sep = ""),
                               x=0.2,y=0.5, hjust=0,
-                           gp=gpar(col="firebrick",fontsize=6, fontface="italic")))+
+                           gp=gpar(col=3,fontsize=6, fontface="italic")))+
   annotation_custom(grid.text( paste("Lambda from smoothed bootstrap = ", 
                                       round(best.lambda.s, 6),sep = ""),
                                 x=0.1,y=0.6, hjust=0,
-                           gp=gpar(col="firebrick",fontsize=6, fontface="italic"))),
+                           gp=gpar(col=2,fontsize=6, fontface="italic"))),
   ncol=2)
 ```
 
@@ -403,10 +429,9 @@ kable(t(cvresult), "latex", caption = "The comparison of performance for two mod
                notation = "alphabet") 
 ```
 
-
 #### Significant random variable selection from smoothed bootstrap
 
-for question 4, two method, 
+for question 4, two method:
 1-select covariates based on number of chosen, 
 2-do hypothesis testing, select significant covariates.
 
