@@ -1,0 +1,440 @@
+---
+title: "test"
+author: "xc2474 Xinlei Chen"
+date: "4/14/2019"
+output: beamer_presentation
+---
+
+## Introduction
+
+- **Group project 2:** Optimization algorithms on a breast cancer diagnosis dataset
+
+- **Group project 3:** Bootstrapping on developing classification model
+
+## Breast Cancer Data
+
+- **Amin: ** Build a predictive model based on logistic regression to faciliate cancer diagnosis, and we compared methods including Newton Raphson, Gradient Decent with general logistic regression and Pathwise Coordinate Descent with regularized logistic regression
+- **Variable Selection:** Reduce multicollinearity based on both correlation coefficient and eigenvalue of correlation matrix
+
+## 
+Multicollinearity plot of the dataset
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE, comment = "")
+library(tidyverse)
+library(Hmisc)#for errvar
+library(ggcorrplot) # for correlation heatmap
+library(ggpubr) # common legend
+library(matrixcalc) #is.negative.def
+library(kableExtra) # table
+library(glmnet) # lasso
+set.seed(99999)
+options(knitr.table.format = "latex")
+```
+
+```{r, echo=FALSE}
+###### data manipulation
+mydata <- read.csv("breast-cancer-1.csv") 
+n <- dim(mydata)[1]
+p <- dim(mydata)[2]
+list <- c(3:(p - 1))
+namesX <- names(mydata)[-c(1,2,p)]
+# standardize
+dataX <- do.call(cbind, lapply(list, function(x) (mydata[,x] - mean(mydata[,x]))/sd(mydata[,x]))) 
+# design matrix
+X <- data.frame(dataX) %>% 
+  mutate(., intercept = 1)
+# response
+resp <- as.vector(ifelse(mydata[,2] == "M", 1, 0))
+###### plot to check collinearity
+colnames(dataX) <- namesX
+colinearity.plot <- function(data){
+  data.frame(data) %>% 
+  select(starts_with("radius"), 
+         starts_with("texture"), 
+         starts_with("perimeter"), 
+         starts_with("area"), 
+         starts_with("smooth"), 
+         starts_with("compact"), 
+         starts_with("concavity"), 
+         starts_with("concave"), 
+         starts_with("symmetry"), 
+         starts_with("fractal")) %>% 
+  cor() %>% 
+  ggcorrplot(.,ggtheme = ggplot2::theme_gray,
+             colors = c("#6D9EC1", "white", "#E46726"),
+             tl.cex = 6)}
+g1 <- colinearity.plot(dataX)
+
+###### variable selection
+eig <- eigen(cor(dataX))$values
+# found values very close to 0, multicolinearity exists
+# function: find the maximum correlation between i and j, at least 0.5
+max.corr <- function(data){
+  len = dim(data)[2]
+  a <- 0.5
+  for (i in 1:(len-1)) {
+    for (j in (i+1):len) {
+      if (abs(cor(data[,i],data[,j])) > a) a <- cor(data[,i],data[,j])
+    }
+  }
+  return(round(a,3))
+}
+# function: update dataset according to several rules: eigenvalues and corr
+selection <- function(data, eigen.tol, corr.tol) {
+  while (min(eigen(cor(data))$values) <= eigen.tol & max.corr(data) >= corr.tol) {
+       temp <- data
+       data <- temp[,-(which(round(abs(cor(temp)),3) == max.corr(temp), arr.ind = TRUE)[1,1])]
+      }
+  return(data)}
+newdataX <- selection(dataX, eigen.tol = 2e-2, corr.tol = 0.7)
+g2 <- colinearity.plot(newdataX)
+eigpost <- eigen(cor(newdataX))$values
+# look at the difference of the deleted colums
+delnames <- setdiff(colnames(dataX),colnames(newdataX))
+ggarrange(g1,g2, ncol=2, nrow=1, common.legend = TRUE, legend = "bottom", labels = "AUTO")
+```
+
+
+## Logistic Model with Newton-Raphson
+
+```{r, echo=FALSE}
+###### 0.logistic regression
+# logfit.0 <- glm(resp~dataX, family = binomial(link = "logit"))
+# algorithm didn't converge without delete colinearity
+logdata <- cbind.data.frame(resp,newdataX)
+logfit.1 <- glm(resp~., family = binomial(link = "logit"),data = logdata)
+logit.beta <- coef(logfit.1)
+##### 1. classical newton raphson
+newX <- data.frame(newdataX) %>%
+  mutate(., intercept = 1)
+newdat <- list(y = resp, X = as.matrix(newX))
+# function: calcualte loglik, gradient, hessian
+logisticstuff <- function(dat, betavec){ 
+  u <- dat$X %*% betavec
+  expu <- exp(u) 
+  loglik <- t(u) %*% dat$y - sum((log(1 + expu))) 
+  prob <- expu / (1 + expu) 
+  grad <- t(dat$X) %*% (dat$y - prob)
+  Hess <- -t(dat$X) %*% diag(as.vector(prob*(1 - prob))) %*% dat$X 
+  return(list(loglik = loglik, grad = grad, Hess = Hess))}
+
+NewtonRaphson <- function(dat, func, start, tol=1e-10, maxiter =200){ 
+  i <- 0 
+  cur <- start 
+  stuff <- func(dat, cur) 
+  res <- c(0, stuff$loglik, cur)
+  prevloglik <- -Inf 
+  while (i < maxiter && abs(stuff$loglik - prevloglik) > tol && stuff$loglik > -Inf) {
+    i <- i + 1 
+    prevloglik <- stuff$loglik 
+    prev <- cur 
+    lambda = 0
+    cur <- prev - ((1/(2^lambda)) * solve(stuff$Hess)) %*% stuff$grad
+    while (func(dat, cur)$loglik < prevloglik){ # step-halving
+      lambda = lambda + 1
+      cur <- prev - ((1/(2^lambda)) * solve(stuff$Hess)) %*% stuff$grad
+    }
+    stuff <- func(dat, cur) 
+    res <- rbind(res, c(i, stuff$loglik, cur))}
+  
+  return(res)
+}
+newres <- NewtonRaphson(newdat,logisticstuff, start = rep(0, dim(newdat$X)[2]))
+# check convergence
+check <- tail(newres)[,1:2]
+newton.beta <- newres[nrow(newres),3:dim(newres)[2]]
+##### 2. gradient descent
+gradient <- function(dat, func, start, tol=1e-10, maxiter = 200){ 
+  i <- 0 
+  cur <- start 
+  pp <- length(start)
+  stuff <- func(dat, cur) 
+  hessinversed <- solve(t(dat$X) %*% (dat$X))
+  res <- c(0, stuff$loglik, cur)
+  prevloglik <- -Inf
+  while (i < maxiter && abs(stuff$loglik - prevloglik) > tol && stuff$loglik > -Inf) { 
+    i <- i + 1 
+    prevloglik <- stuff$loglik 
+    prev <- cur 
+    cur <- prev + hessinversed %*% (stuff$grad)
+    stuff <- func(dat, cur) 
+    res <- rbind(res, c(i, stuff$loglik, cur))} 
+  return(res)
+}
+gradres <- gradient(newdat, logisticstuff, start = rep(0, dim(newdat$X)[2]), maxiter = 1000)
+# check convergence
+check <- tail(gradres)[,1:2]
+grad.beta <- gradres[nrow(gradres),3:dim(gradres)[2]]
+##### 3. coordinate-wise logistic lasso
+sfun <- function(beta,lambda) sign(beta) * max(abs(beta)-lambda, 0)
+coordinatelasso <- function(lambda, dat, s, tol=1e-10, maxiter = 200){
+  i <- 0 
+  pp <- length(s)
+  n <- length(dat$y)
+  betavec <- s
+  loglik <- 1e6
+  res <- c(0, loglik, betavec)
+  prevloglik <- Inf # To make sure it iterates 
+  while (i < maxiter && abs(loglik - prevloglik) > tol && loglik < Inf) {
+    i <- i + 1 
+    prevloglik <- loglik
+    for (j in 1:pp) {
+      u <- dat$X %*% betavec
+      expu <- exp(u) 
+      prob <- expu/(expu+1)
+      w <- prob*(1-prob) # weighted
+      # avoid coeffcients diverging in order to achieve fitted  probabilities of 0 or 1.
+      w <- ifelse(abs(w-0) < 1e-5, 1e-5, w)
+      z <- u + (dat$y-prob)/w
+      # calculate noj
+      znoj <- dat$X[,-j] %*% betavec[-j]
+      # revise the formula to be z
+      betavec[j] <- sfun(mean(w*(dat$X[,j])*(z - znoj)), lambda)/(mean(w*dat$X[,j]*dat$X[,j]))
+    }
+    loglik <- sum(w*(z-dat$X %*% betavec)^2)/(2*n) + lambda * sum(abs(betavec))
+    res <- rbind(res, c(i, loglik, betavec))}  
+  return(res)
+}
+corres <- coordinatelasso(lambda = exp(-8e-1), newdat, s = rep(0, dim(newdat$X)[2]) ,maxiter = 2000)
+check <- tail(corres)[,1:2]
+cor.beta <- corres[nrow(corres),3:dim(corres)[2]]
+# logmod <- glmnet(newdat$X[,-dim(newdat$X)[2]], y=newdat$y, alpha=1, family="binomial",lambda=1e-2)
+# check: coef.glmnet(logmod)
+logmod <- cv.glmnet(newdat$X[,-dim(newdat$X)[2]], y=newdat$y, alpha=1, family="binomial",type.measure="mse")
+# check: plot(logmod)
+# check: logmod$lambda.min
+```
+
+**Logistic Regression:**
+
+$y$: the vector of $n$ response random variable
+
+$X$: the $n\times p$ design matrix ($X_{i}$ denote the $i$th row)
+
+$\beta$: the $p\times 1$ coefficient
+
+
+- The logistic regression model: 
+
+$$\log(\frac{\eta}{1-\eta}) = X\beta$$
+
+- The likelihood function:
+
+$$L(\beta; X, y) = \prod_{i=1}^n \{(\frac{\exp(X_{i}\beta)}{1+\exp(X_{i}\beta)})^{y_i}(\frac{1}{1+\exp(X_{i}\beta)})^{1-y_i}\}$$
+
+
+## 
+
+- The log likelihood:
+$$
+\begin{aligned}
+l(\beta) 
+& = \sum_{i=1}^n \{y_i(X_{i}\beta)-\log(1+\exp(X_{i}\beta))\}
+\end{aligned}
+$$
+
+- The gradient:
+$$
+\nabla l(\beta) = X^T(y-p)
+$$
+where $p=\frac{\exp(X\beta)}{1+\exp(X\beta)}$
+
+- The Hessian:
+$$
+\nabla^2 l(\beta) = -X^T W X
+$$
+where $W = diag(p_i(1-p_i)), i=1,\cdots,n$. The Hessian is negative definite.
+
+## 
+
+**Newton-Raphson**
+
+*Update coefficients*
+$$\beta_{i+1} = \beta_{i} -[\nabla^2 l(\beta_{i})]^{-1}\nabla l(\beta_{i})$$
+*Step-halving*
+$$
+\beta_{i+1}(\gamma) = \beta_{i} - \gamma[\nabla^2 l(\beta_{i})]^{-1}\nabla l(\beta_{i})
+$$
+
+- Set $\gamma = 1$
+- If $f(\theta_{i+1}(1)) \geq f(\theta_{i})$, then set $\theta_{i+1} = \theta_{i+1}(1)$
+- If $f(\theta_{i+1}(1)) \leq f(\theta_{i})$, search for a value $\gamma \in (0,1)$ for which $f(\theta_{i+1}(\gamma)) \geq f(\theta_{i})$, set $\theta_{i+1} = \theta_{i+1}(\gamma)$
+
+## 
+
+**Newton-Raphson: gradient decent**
+
+For Newton's method with a large $p$, the computational burden in calculating the inverse of the Hessian Matrix $[\nabla^2 f(\beta_{i})]^{-1}$ increases quickly with $p$. One can update
+$$
+\beta_{i+1} = \beta_{i} + H_{i}\nabla f(\beta_{i})
+$$
+where $H_{i} = (X^TX)^{-1}$ for every $i$. This is easy to compute, but could be slow in convergence.
+
+The steps are:
+
+- get the objective (loglik,grad,Hess) function
+- use the principle of newton raphson to update the estimate, if the step size too large, step-halving step
+- stop searching until the convergences of the estimates.
+
+## Logistic-LASSO Model with Pathwise Coordinate Descent
+
+- Applied coordinate-wise descent with weighted update:
+$$
+\tilde{\beta}^{lasso}_{j}(\lambda) \leftarrow \frac{S(\sum_{i=1}^{n}\omega_{i}x_{i,j}(y_{i} - \tilde{y_{i}}^{(-j)}), \lambda)}{\sum_{i=1}^n\omega_{i}x_{i,j}^{2}}
+$$
+where $\tilde{y_{i}}^{(-j)} = \sum_{k \neq j}x_{i,k}\tilde{\beta_{k}}$ and $S(\hat{\beta}, \lambda) = sign(\hat{\beta})(|\hat{\beta}| - \lambda)_{+}$
+
+
+- In the context of logistic regression, we are aiming to maximize the penalized log likelihood:
+$$\max_{\beta \in \mathbb{R}^{p+1}} \frac{1}{n}\sum_{i=1}^n  \{y_i(X_{i}\beta)-\log(1+\exp(X_{i}\beta))\}-\lambda \sum_{j=0}^p |\beta_j|$$
+for some $\lambda \geq 0$
+
+
+## Result
+**Estimation Path**
+
+```{r, echo=FALSE}
+# impletement the pathwise coordinatewise optimization algorithm to obtain a path of solutions
+path <- function(inputx,inputy,grid){
+  start <- rep(0, dim(inputx)[2])
+  betas <- NULL
+  for (x in 1:100) {
+  cv.errors <- vector()
+    cor.result <- coordinatelasso(lambda = grid[x], 
+                                  dat = list(X=as.matrix(inputx),y=inputy),
+                                  s= start)
+    lasbeta <- cor.result[nrow(cor.result),3:dim(cor.result)[2]]
+    start <- lasbeta
+    betas <- rbind(betas,c(lasbeta))
+  }
+  return(data.frame(cbind(grid,betas)))
+}
+path.out <- path(newX,resp,grid=exp(seq(-8e-1,-8, length=100)))
+colnames(path.out) <- c("grid",colnames(newdataX),"the intercept")
+# plot a path of solutions
+path.plot <- path.out %>%
+  gather(key = par, value = estimate, c(2:dim(path.out)[2])) %>% 
+  ggplot(aes(x = log(grid), y = estimate, group = par, col = par)) +
+  geom_line()+
+  ggtitle("Figure 2: A path of solutions with a sequence of descending lambda's") +
+  xlab("log(Lambda)") + 
+  ylab("Estimate") +
+  theme(legend.position = "bottom", 
+        legend.text = element_text(size = 6))
+path.plot
+
+```
+
+
+##
+**Cross validation for LASSO**
+
+```{r, echo=FALSE}
+cvresult <- function(inputx,inputy,grid,K){
+  n <- dim(inputx)[1]
+  folds <- sample(1:K, n, replace=TRUE)
+  start <- rep(0, dim(inputx)[2])
+  cv.error <- vector()
+  cv.se <- vector()
+  for (x in 1:length(grid)) {
+  cv.errors <- vector()
+  for (i in 1:K){
+    cor.result <- coordinatelasso(lambda = grid[x], 
+                                  dat = list(X=as.matrix(inputx[folds!=i,]),y=inputy[folds!=i]),
+                                  s = start)
+    lasbeta <- cor.result[nrow(cor.result),3:dim(cor.result)[2]]
+    u <- as.matrix(inputx[folds == i,]) %*% lasbeta
+    expu <- exp(u) 
+    prob <- expu / (1 + expu) 
+    y <- as.vector(inputy[folds==i])
+    cv.errors[i] = mean((y-prob)^2) #MSE
+    start <- lasbeta
+  }
+  cv.error[x] <- mean(cv.errors)
+  cv.se[x] <- sqrt(var(cv.errors)/K)
+  }
+  return(cbind(grid,cv.error,cv.se))
+}
+
+result <- cvresult(newX,resp,grid=exp(seq(-8e-1,-8, length=100)),K=5)
+# result <- cvresult(X,resp,grid=seq(0.5, 1e-2, length=100),K=5)
+best.lambda <- result[which.min(result[,2]),1]
+# need rewrite
+finlasso <- as.matrix(path(newX,resp,grid=exp(seq(-8e-1,log(best.lambda), length=100))))
+lasso.beta <- finlasso[nrow(finlasso),2:dim(finlasso)[2]]
+
+# plot for cross validation
+result <- data.frame(result)
+cv.plot <- 
+    ggplot(result, aes(x=log(result$grid), y=result$cv.error)) + 
+    geom_errorbar(aes(ymin=result$cv.error-result$cv.se, ymax=result$cv.error+result$cv.se),
+                  colour=1) +
+    geom_line() +
+    geom_point(size=0.8,colour = 4) +
+    ggtitle("Figure 3: Lasso regression by 5 fold cross validation")+
+    xlab("log(Lambda)") + ylab("MSE") +
+    geom_vline(xintercept = log(best.lambda),col=3,lty=3) +
+    annotate("text", log(best.lambda), 0.1, label = paste("best log(lambda) = ", round(log(best.lambda), 3), sep = ""))
+cv.plot
+```
+
+
+##
+**Model Comparison**
+
+```{r, echo=FALSE}
+######## compare prediction performance of all results
+pred.fun <- function(outcome,input, beta){
+    u <- as.matrix(input) %*% beta
+    expu <- exp(u) 
+    prob <- expu / (1 + expu) 
+    pred.error = mean((as.vector(outcome)-prob)^2)
+    return(pred.error)
+}
+
+# logistic regression by GLM
+log.beta <- c(logit.beta[2:length(logit.beta)],logit.beta[1])
+pred <- predict(logfit.1)
+log.pred <- mean((resp-exp(pred)/(1+exp(pred)))^2) # abs(mean(logfit.1$residuals))
+# newton's method
+newton.ite <- nrow(newres)
+newton.beta <- newres[nrow(newres),3:dim(newres)[2]]
+newton.pred <- pred.fun(resp,newX,newton.beta)
+# gradient decent
+grad.ite <- nrow(gradres)
+grad.beta <- gradres[nrow(gradres),3:dim(gradres)[2]]
+grad.pred <- pred.fun(resp,newX,grad.beta)
+logmod.cv <- cv.glmnet(newdat$X[,-dim(newdat$X)[2]], y=newdat$y, alpha=1, family="binomial")
+best.lambda.func <- logmod$lambda.min
+logmod <- glmnet(newdat$X[,-dim(newdat$X)[2]], y=newdat$y, alpha=1, family="binomial",lambda = best.lambda.func)
+glmnet.beta <- c(coef.glmnet(logmod)[2:length(coef.glmnet(logmod))],coef.glmnet(logmod)[1])
+glmnet.pred <- predict(logmod,newdataX,type="response", lambda = best.lambda.func)
+glmnet.pred <- mean((resp-glmnet.pred)^2)
+# lasso logistic
+lasso.ite <- nrow(finlasso)
+lasso.beta <- lasso.beta
+lasso.pred <-  pred.fun(resp,newX,lasso.beta)
+
+beta.res <- round(as.matrix(rbind(log.beta,newton.beta,grad.beta,lasso.beta,glmnet.beta)),2)
+colnames(beta.res) <- colnames(newX)
+rownames(beta.res) <- c("GLM package","Newton Raphson","Gradient Decent","Logistic Lasso","Lasso package")
+perf.res <- matrix(rep(NA),ncol = 2, nrow = 5)
+colnames(perf.res) <- c("iteration times","MSE")
+rownames(perf.res) <- c("GLM package","Newton Raphson","Gradient Decent","Logistic Lasso","Lasso package")
+perf.res[1,1] <- "NA"
+perf.res[1,2] <- round(log.pred ,2)
+perf.res[2,1] <- newton.ite
+perf.res[2,2] <- round(newton.pred,2)
+perf.res[3,1] <- grad.ite
+perf.res[3,2] <- round(grad.pred,2)
+perf.res[4,1] <- lasso.ite
+perf.res[4,2] <- round(lasso.pred,2)
+perf.res[5,1] <- "NA"
+perf.res[5,2] <- round(glmnet.pred,2)
+
+# output-performace
+kable(t(perf.res), "latex", caption = "The comparison of performance for estimation algorithms and models", booktabs = T) %>% 
+  kable_styling(latex_options = c("hold_position", "scale_down")) %>%
+  add_footnote(c("Dataset: Breast Cancer Diagnosis"),
+               notation = "alphabet")          
+```
