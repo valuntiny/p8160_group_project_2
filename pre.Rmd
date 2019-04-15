@@ -12,7 +12,7 @@ output: beamer_presentation
 
 ## Breast Cancer Data
 
-- **Amin: ** Build a predictive model based on logistic regression to faciliate cancer diagnosis, and we compared methods including Newton Raphson, Gradient Decent with general logistic regression and Pathwise Coordinate Descent with regularized logistic regression
+- **Aim: ** Build a predictive model based on logistic regression to faciliate cancer diagnosis, and we compared methods including Newton Raphson, Gradient Decent with general logistic regression and Pathwise Coordinate Descent with regularized logistic regression
 - **Variable Selection:** Reduce multicollinearity based on both correlation coefficient and eigenvalue of correlation matrix
 
 ## 
@@ -506,7 +506,7 @@ mydata <- oridata%>%
 
 
 - **Aim: ** Build a predictive model based on logistic regression to faciliate down syndrome diagnosis, and compared methods including and Pathwise Coordinate Descent with regularized logistic regression and smoothed bootstrap estimation.
-- **Variable Selection: ** Delete variables with high missing rate $(\geq 20\%)$
+- **Variable Selection: ** Delete variables with high missing rate $(\geq 15\%)$
 
 Also due to the intrinsic correlation between individual proteins (Fig. 2), it's impossible to apply normal regression methods to this dataset because of sigularity propblem. Instead, we choose regularized methods, LASSO, to be more specific.
 
