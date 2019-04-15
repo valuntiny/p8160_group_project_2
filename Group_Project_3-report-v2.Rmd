@@ -1,7 +1,7 @@
 ---
 title: "A study of bootstrapping on developing classification model"
 author: "Xinlei Chen, Guojing Wu and Yujing Yao"
-abstract: "This report discusses a study of bootstrap to develop classification model based on the proteins expression levels. Our goal is to build a predictive model based on logistic regression to facilicate down syndrome diagnosis, and we compared methods including and Pathwise Coordinate Descent with regularized logistic regression and smoothed bootstrap estimation. Our result shows that ....."
+abstract: "This report discusses a study of bootstrap to develop classification model based on the proteins expression levels. Our goal is to build a predictive model based on logistic regression to facilicate Down syndrome diagnosis. We compared Pathwise Coordinate Descent Estimation with Regularized Logistic Regression (PCD-LASSO) and Smoothed Bootstrap Estimation (SBE). Our result shows that while the Cross Validation MSE are similar between these two methods, SBE provides a more accurate classification result And based on that, we identified a subset of proteins that are significantly associated with the Down syndrome."
 thanks:
 keywords: "Logistic Regression; Optimization; Pathwise Coordinate Descent; Regularized Logistic Regression; Smoothed bootstrap"
 date: "April 19, 2019"
@@ -63,7 +63,7 @@ mydata <- oridata%>%
 
 The data \textit{Down.csv} consists of the expression levels of 77 proteins/protein modifications that produced detectable signals in the nuclear fraction of cortex. It has 1080 rows and 79 columns. The first column \textbf{MouseID} identifies individual mice; The  column \textbf{2-78} are values of expression levels of 77 proteins. Column 79 indicates whether the mouse is a control or has Down syndrome. The goal is to develop classification model based on the proteins expression levels.  
 
-We found that data is missing for some of the covariates, so we deleted those high missing rate(>15\%). For those covariates with missing rate < 15\%, we assumed them to be missing completely at random(MCAR), so we would analyze the complete cases in the following (Fig 1).
+We found that data is missing for some of the covariates (Fig. 1), so we deleted those high missing rate(>15\%). For those covariates with missing rate < 15\%, we assumed them to be missing completely at random(MCAR), so we would analyze the complete cases in the following.
 
 \textbf{Figure 1: proteins' missing percentage}
 
@@ -76,7 +76,7 @@ tibble(name = names(x), percentage = as.numeric(x)) %>%
   theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 7))
 ```
 
-!!! explain why we need to apply regulized method: singular
+Also due to the intrinsic correlation between individual proteins (Fig. 2), it's impossible to apply normal regression methods to this dataset because of sigularity propblem. Instead, we choose regularized methods, LASSO, to be more specific.
 
 \textbf{Figure 2: missingness plot and multicollinearity plot of the dataset}
 
@@ -124,7 +124,7 @@ l(\beta)
 $$
 
 
-### Pathwise Coordinate Descent with regularized logistic regression
+### Pathwise Coordinate Descent with regularized logistic regression (PCD-LASSO)
 
 Regularization is the common variable selection approaches for high-dimensional covariates. The best known Regularization is called LASSO, which is to add $L1$-penalty to the objective function. In the context of logistic regression, we are aiming to maximize the penalized log likelihood:
 $$\max_{\beta \in \mathbb{R}^{p+1}} \frac{1}{n}\sum_{i=1}^n  \{y_i(X_{i}\beta)-\log(1+\exp(X_{i}\beta))\}-\lambda \sum_{j=0}^p |\beta_j|$$
@@ -154,9 +154,9 @@ The above amounts to a sequence of nested loops:
 In our problem, care is taken to avoid coefficients diverging in order to achieve fitted probabilities of 0 or 1 which is the warning message by the R package. When a probability with $\epsilon = 1e-5$ of 1, we set it to 1, and set the weights to $\epsilon$. 0 is treated similarly.
 
 
-### Smoothing bootstrap and inference
+### Smoothed Bootstrap Estimation (SBE) and inference
 
-Classical statistical theory ignores model selection in assessing estimation accuracy. Here we consider bootstrap methods for computing standard errors and confidence intervals that take model selection into account. The methodology involves bagging, also known as bootstrap smoothing, to tame the erratic discontinuities of selection-based estimators. 
+Classical statistical theory ignores model selection in assessing estimation accuracy. Here we consider bootstrap methods for computing standard errors and confidence intervals that take model selection into account. The methodology involves bagging, also known as bootstrap smoothing (Efron and Tibshirani 1996), to tame the erratic discontinuities of selection-based estimators. 
 
 Point estimation:
 
@@ -167,10 +167,7 @@ Point estimation:
 \tilde{\mu} = s(y) = \frac{1}{B}\sum_{i=1}^B t(y^*)
 \]
 
-Bootstrap smoothing (Efron and Tibshirani 1996), a form of model averaging, is better known as "bagging" in the prediction literature. 
-
-smoothed interval
-In addition to the percentile confidence interval, the nonparametric delta-method estimate of standard deviation for $s(y)$ in the nonideal case 
+And in addition to the percentile confidence interval, the nonparametric delta-method estimate of standard deviation for $s(y)$ in the nonideal case is:
 \[
 \tilde{sd}_B = [\sum_{i=1}^n\hat{cov}_j^2]^{1/2}
 \]
@@ -182,9 +179,11 @@ with $Y_{.j}^* = \sum_{i=1}^BY_{ij}^*/B$ and $t_.^* = \sum_{i=1}^Bt_{i}^*/B=s(y)
 
 ## Results
 
-### Pathwise Coordinate Descent Logistic Lasso 
+### PCD-LASSO 
 
-\textbf{Figure 3: Pathwise Coordinate Descent Lasso}
+Fig. 3A shows us that as the $\lambda$ increases, all the variable estimates of parameters shrink accordingly since we penalize all the parameters. When $\lambda = 0$, the result is the same as least square method and when $\lambda$ is too large, all the estimates of parameters shrink to 0. Fig. 3B shows us the cross validation result for choosing the best $\lambda$. 
+
+\textbf{Figure 3: results of PCD-LASSO}
 
 ```{r, dpi = 300}
 ### regulized logistic regression: middle loop and inner loop
@@ -278,7 +277,7 @@ cv.plot <-
                   colour=1) +
     geom_line() +
     geom_point(size=0.8,colour = 4) +
-    ggtitle("B) Lasso regression by 5 fold cross validation")+
+    ggtitle("B) LASSO regression by 5 fold cross validation")+
     theme(plot.title = element_text(size = 8))+
     xlab("log(Lambda)") + ylab("MSE") +
     geom_vline(xintercept = log(best.lambda),col=3,lty=3) +
@@ -293,27 +292,28 @@ lenb <- dim(temp)[1]
 co.fin.beta <- rbind(temp[lenb,],temp[1:(lenb-1),])
 ```
 
-\textbf{Fig. 3A} shows us that as the $\lambda$ increases, all the variable estimates of parameters shrink accordingly since we penalize all the parameters, though in some. When $\lambda = 0$, the result is the same as least square method and when $\lambda$ is too large, all the estimates of parameters shrink to 0. \textbf{Fig. 3B} shows us the cross validation result for choosing the best $\lambda$. 
 <!-- The logistic lasso with pathwise coordinate Descent suggests that the penalty term to be `r best.lambda` by 5 fold cross validation based on the dataset. -->
 
 ```{r}
 # compare the result of our methods and glmnet
 logmod <- glmnet(dat$X[,-dim(dat$X)[2]], y = dat$y, alpha=1, family="binomial",lambda = best.lambda)
 res.comp <- cbind(co.fin.beta, as.matrix(coef.glmnet(logmod)))
-names(res.comp) = c("protein", "LASSO", "glmnet")
+names(res.comp) = c("protein", "LASSO", "glmnet") # it's very similar
 ```
 
-### Model selection based on Smoothed Bootstrap for Logistic Lasso
+### Model selection based on SBE for Logistic LASSO
 
 We are still dealing with regularized lasso with this dataset, we wanted to apply smoothed bootstrap in order to get better estimates and inference result. 
 
 algorithm:
 
 - bootstrap data from the original dataset
-- do cross validation and select the best $\lambda$
-- suggest $\lambda = \frac{1}{B}\sum_{i=1}^B \lambda_i^{(b)}$  bagging?
+- do cross validation and select the best $\lambda_{i}^{\ast}$ for each repetition
+- calculate average $\lambda^{\ast} = \frac{1}{B}\sum_{i=1}^B \lambda_i^{\ast}$
 
-\textbf{Figure 4: Lambda selection based on Smoothed Bootstrap for Logistic Lasso}
+We can see the discrepancy between results of PCD-LASSO and SBE for Logistic LASSO both in prediction (Fig 4A) and finding the best $\lambda$ (Fig 4B), the results of PCD-LASSO is deviated from the center of empirical distribution.
+
+\textbf{Figure 4: Lambda selection based on SBE for Logistic LASSO}
 
 ```{r, dpi = 300}
 ############ get the estimate and se by smmothing bootstrap
@@ -389,7 +389,7 @@ grid.arrange(s1+
 
 ### Cross validation for model prediction comparison
 
-We used 10 fold cross-validation to compare two different models, one is with $\lambda$ selected from data, the other is selected from the bootstrap.
+We used 10 fold cross-validation to compare two different models, one is with $\lambda$ selected from data, the other is selected from the SBE. Table 1 shows us that while the Cross Validation MSE are similar between these two methods, SBE provides a more accurate classification result.
 
 ```{r}
 ################ cross validation for comparison of prediction error
@@ -429,20 +429,24 @@ kable(t(cvresult), "latex", caption = "The comparison of performance for two mod
                notation = "alphabet") 
 ```
 
-#### Significant random variable selection from smoothed bootstrap
+#### Significant random variable selection from SBE
 
-for question 4, two method:
-1-select covariates based on number of chosen, 
-2-do hypothesis testing, select significant covariates.
+Table 2 & 3 provide the full results of SBE for logistic LASSO. Our identification criterions here are: 
+
+1. the chosen probability greater than 96\%
+
+2. SBE confidence interval excludes zero. 
+
+Based on that, we got 27 proteins that meets these two criterions (Table 1).
 
 ```{r}
 ## select beta based on number of chosen
 # colnames(out.df) <- c("min.lambda","subject.1","intercpt",colnames(dataX),
 #                    sprintf("b[%d]",seq(1:p)),sprintf("n[%d]",seq(1:n)))
-betanum <- out.df[,c((2+p+1):(2+p+p))]
+betanum <- out.df[,c((2+p+1):(2+p+p))] # number of been chosen
 betachosen <- round(t(apply(betanum,2,mean)),2)
 ## inference-hypothesis testing
-betacoeff <- out.df[,c((2+1):(2+p))]
+betacoeff <- out.df[,c((2+1):(2+p))] # coefficients got from bootstrap, average it
 ynum <- out.df[,c((2+2*p+1):(2+2*p+n))]
 meany <- apply(ynum, 2, mean)
 coef <- round(apply(betacoeff, 2, mean),4)
@@ -451,33 +455,40 @@ for (k in 1:p) {
   covj <- (t(ynum)-(as.vector(meany)%*%t(rep(1,B))))%*%(betacoeff[,k]-rep(coef[k],B))
   sd[k] <- round(sqrt((t(covj)%*%covj))/B,4)
 }
-coeff <- cbind(coef,sd)
+coeff <- cbind(coef,sd) # mean and sd got from Efron methods
 newcf <- round(cbind(lower.new = coef -1.96*sd,upper.new = coef +1.96*sd),4)
 cf <- round(cbind(lower = apply(betacoeff,2,quantile,0.025),
-                  upper = apply(betacoeff,2,quantile,0.975)),4)
-est.result <- cbind(origin =round(as.vector(co.fin.beta[,2]),4), 
+                  upper = apply(betacoeff,2,quantile,0.975)),4) # CI got from empirical distritbuion
+est.result <- cbind(origin =round(as.vector(co.fin.beta[,2]),4), # results from LASSO
                     prob = as.vector(betachosen),
                     coeff,cf,newcf)
 rownames(est.result) <- c("Intercept", colnames(dataX))
-kable(est.result[c(1:35),], "latex", caption = "Smoothed bootstrap estimation for best model(1)", booktabs = T) %>%
+
+# choose covariate based on this criterion
+tmp = cbind(rownames(est.result), est.result)
+covname = tmp %>% 
+  as.tibble() %>% 
+  filter(prob >= 0.96, 
+         (lower.new > 0 | upper.new < 0)) %>% 
+  select(V1) %>% 
+  unlist()
+
+kable(est.result[covname,], "latex", caption = "Significant Proteins", booktabs = T) %>%
   kable_styling(latex_options = c("hold_position", "scale_down"),
                 font_size = 6,full_width = F) %>%
-  add_footnote(c("Bootstap time=5000"),
+  add_footnote(c("Bootstap time=5000", "origin: estimation from PCD-LASSO", "prob: chosen probability from bootstrap", "doef: estimation from SBE", "sd: nonparamatric delta-method estimate of standard deviation", "lower, upper: quantile CI", "lower.new, upper.new: CI from nonparamatric delta-method estimate"),
                notation = "alphabet")
 
-kable(est.result[-c(1:35),], "latex", caption = "Smoothed bootstrap estimation for best model(2)", booktabs = T) %>%
+kable(est.result[setdiff(rownames(est.result), covname),], "latex", caption = "Non-significant Proteins", booktabs = T) %>%
   kable_styling(latex_options = c("hold_position", "scale_down"),
                 font_size = 6,full_width = F) %>%
-  add_footnote(c("Bootstap time=5000"),
+  add_footnote(c("Bootstap time=5000", "origin: estimation from PCD-LASSO", "prob: chosen probability from bootstrap", "doef: estimation from SBE", "sd: nonparamatric delta-method estimate of standard deviation", "lower, upper: quantile CI", "lower.new, upper.new: CI from nonparamatric delta-method estimate"),
                notation = "alphabet")
 ```
 
-Chosen probability greater than 80\% will be considered as important;
-Chosen probability greater than 96\% will be considered as significant(two exceptions);
-Chosen probability greater than 96\% and confidence interval without zero might be a good choice.
-
 ## Conclusions
 
+In this study, we first used cross validation to find the best $\lambda$ for PCD-LASSO prediction. Then we used bootstrap to plot empirical distribution of the best $\lambda$ for LASSO and the prediction of subject 1, which proved that classical statistical theory does ignore model selection in assessing estimation accuracy. The cross validation result of comparing PCD-LASSO best $\lambda$ and SBE best $\lambda$ also showed that SBE method provide a better result. Then based on the chosen probability and SBE CI, we identified a subset of proteins that are significantly associated with the Down syndrome.
 
 ## References
 \begin{enumerate}
