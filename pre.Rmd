@@ -1,22 +1,16 @@
 ---
 title: "Group Project 2 & 3"
 author: "Xinlei Chen, Guojing Wu, Yujing Yao"
-output: beamer_presentation
+header-includes:
+- \usepackage{booktabs}
+- \usepackage{makecell}
+output:
+  beamer_presentation:
+    theme: "Warsaw"
+    colortheme: "whale"
+    fonttheme: "structurebold"
 ---
 
-## Introduction
-
-- **Group project 2:** Optimization algorithms on a breast cancer diagnosis dataset
-
-- **Group project 3:** Bootstrapping on developing classification model
-
-## Breast Cancer Data
-
-- **Aim: ** Build a predictive model based on logistic regression to faciliate cancer diagnosis, and we compared methods including Newton Raphson, Gradient Decent with general logistic regression and Pathwise Coordinate Descent with regularized logistic regression
-- **Variable Selection:** Reduce multicollinearity based on both correlation coefficient and eigenvalue of correlation matrix
-
-## 
-Multicollinearity plot of the dataset
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE, comment = "")
 library(tidyverse)
@@ -26,9 +20,6 @@ library(ggpubr) # common legend
 library(matrixcalc) #is.negative.def
 library(kableExtra) # table
 library(glmnet) # lasso
-set.seed(99999)
-options(knitr.table.format = "latex")
-
 library(grid)
 library(gridExtra)
 # parallel program
@@ -42,6 +33,22 @@ set.seed(99999)
 options(knitr.table.format = "latex")
 theme_set(theme_bw())
 ```
+
+## Introduction
+
+- **Group project 2:** Optimization algorithms on a breast cancer diagnosis dataset
+
+
+- **Group project 3:** Bootstrapping on developing classification model
+
+
+## Breast Cancer Data
+
+- **Amin: ** Build a predictive model based on logistic regression to faciliate cancer diagnosis, and we compared methods including Newton Raphson, Gradient Decent with general logistic regression and Pathwise Coordinate Descent with regularized logistic regression
+- **Variable Selection:** Reduce multicollinearity based on both correlation coefficient and eigenvalue of correlation matrix
+
+## 
+Multicollinearity plot of the dataset
 
 ```{r, echo=FALSE}
 ###### data manipulation
@@ -76,33 +83,9 @@ colinearity.plot <- function(data){
              colors = c("#6D9EC1", "white", "#E46726"),
              tl.cex = 6)}
 g1 <- colinearity.plot(dataX)
-
-###### variable selection
-eig <- eigen(cor(dataX))$values
-# found values very close to 0, multicolinearity exists
-# function: find the maximum correlation between i and j, at least 0.5
-max.corr <- function(data){
-  len = dim(data)[2]
-  a <- 0.5
-  for (i in 1:(len-1)) {
-    for (j in (i+1):len) {
-      if (abs(cor(data[,i],data[,j])) > a) a <- cor(data[,i],data[,j])
-    }
-  }
-  return(round(a,3))
-}
-# function: update dataset according to several rules: eigenvalues and corr
-selection <- function(data, eigen.tol, corr.tol) {
-  while (min(eigen(cor(data))$values) <= eigen.tol & max.corr(data) >= corr.tol) {
-       temp <- data
-       data <- temp[,-(which(round(abs(cor(temp)),3) == max.corr(temp), arr.ind = TRUE)[1,1])]
-      }
-  return(data)}
-newdataX <- selection(dataX, eigen.tol = 2e-2, corr.tol = 0.7)
+newdataX <- read.csv("newdataX.csv",header = T)%>%
+  dplyr::select(.,-c(1))
 g2 <- colinearity.plot(newdataX)
-eigpost <- eigen(cor(newdataX))$values
-# look at the difference of the deleted colums
-delnames <- setdiff(colnames(dataX),colnames(newdataX))
 ggarrange(g1,g2, ncol=2, nrow=1, common.legend = TRUE, legend = "bottom", labels = "AUTO")
 ```
 
@@ -152,8 +135,6 @@ NewtonRaphson <- function(dat, func, start, tol=1e-10, maxiter =200){
   return(res)
 }
 newres <- NewtonRaphson(newdat,logisticstuff, start = rep(0, dim(newdat$X)[2]))
-# check convergence
-check <- tail(newres)[,1:2]
 newton.beta <- newres[nrow(newres),3:dim(newres)[2]]
 ##### 2. gradient descent
 gradient <- function(dat, func, start, tol=1e-10, maxiter = 200){ 
@@ -173,9 +154,9 @@ gradient <- function(dat, func, start, tol=1e-10, maxiter = 200){
     res <- rbind(res, c(i, stuff$loglik, cur))} 
   return(res)
 }
-gradres <- gradient(newdat, logisticstuff, start = rep(0, dim(newdat$X)[2]), maxiter = 1000)
-# check convergence
-check <- tail(gradres)[,1:2]
+# gradres <- gradient(newdat, logisticstuff, start = rep(0, dim(newdat$X)[2]), maxiter = 1000)
+gradres <- read.csv("gradres.csv",header = T)%>%
+  dplyr::select(.,-c(1))
 grad.beta <- gradres[nrow(gradres),3:dim(gradres)[2]]
 ##### 3. coordinate-wise logistic lasso
 sfun <- function(beta,lambda) sign(beta) * max(abs(beta)-lambda, 0)
@@ -207,14 +188,8 @@ coordinatelasso <- function(lambda, dat, s, tol=1e-10, maxiter = 200){
     res <- rbind(res, c(i, loglik, betavec))}  
   return(res)
 }
-corres <- coordinatelasso(lambda = exp(-8e-1), newdat, s = rep(0, dim(newdat$X)[2]) ,maxiter = 2000)
-check <- tail(corres)[,1:2]
-cor.beta <- corres[nrow(corres),3:dim(corres)[2]]
-# logmod <- glmnet(newdat$X[,-dim(newdat$X)[2]], y=newdat$y, alpha=1, family="binomial",lambda=1e-2)
-# check: coef.glmnet(logmod)
 logmod <- cv.glmnet(newdat$X[,-dim(newdat$X)[2]], y=newdat$y, alpha=1, family="binomial",type.measure="mse")
-# check: plot(logmod)
-# check: logmod$lambda.min
+
 ```
 
 **Logistic Regression:**
@@ -306,10 +281,9 @@ for some $\lambda \geq 0$
 
 
 ## Result
-**Estimation Path**
+**Estimation Path and Cross validation for LASSO**
 
 ```{r, echo=FALSE}
-# impletement the pathwise coordinatewise optimization algorithm to obtain a path of solutions
 path <- function(inputx,inputy,grid){
   start <- rep(0, dim(inputx)[2])
   betas <- NULL
@@ -324,8 +298,8 @@ path <- function(inputx,inputy,grid){
   }
   return(data.frame(cbind(grid,betas)))
 }
-path.out <- path(newX,resp,grid=exp(seq(-8e-1,-8, length=100)))
-colnames(path.out) <- c("grid",colnames(newdataX),"the intercept")
+path.out <- read.csv("path.out.p2.csv",header = T)%>%
+  dplyr::select(.,-c(1))
 # plot a path of solutions
 path.plot <- path.out %>%
   gather(key = par, value = estimate, c(2:dim(path.out)[2])) %>% 
@@ -334,18 +308,8 @@ path.plot <- path.out %>%
   ggtitle("Figure 2: A path of solutions with a sequence of descending lambda's") +
   xlab("log(Lambda)") + 
   ylab("Estimate") +
-  theme(legend.position = "bottom", 
+  theme(legend.position = "none", 
         legend.text = element_text(size = 6))
-path.plot
-
-```
-
-
-
-##
-**Cross validation for LASSO**
-
-```{r, echo=FALSE}
 cvresult <- function(inputx,inputy,grid,K){
   n <- dim(inputx)[1]
   folds <- sample(1:K, n, replace=TRUE)
@@ -363,7 +327,7 @@ cvresult <- function(inputx,inputy,grid,K){
     expu <- exp(u) 
     prob <- expu / (1 + expu) 
     y <- as.vector(inputy[folds==i])
-    cv.errors[i] = mean((y-prob)^2) #MSE
+    cv.errors[i] = mean((y-prob)^2) 
     start <- lasbeta
   }
   cv.error[x] <- mean(cv.errors)
@@ -371,14 +335,12 @@ cvresult <- function(inputx,inputy,grid,K){
   }
   return(cbind(grid,cv.error,cv.se))
 }
-
-result <- cvresult(newX,resp,grid=exp(seq(-8e-1,-8, length=100)),K=5)
-# result <- cvresult(X,resp,grid=seq(0.5, 1e-2, length=100),K=5)
+result <- read.csv("cvresult.p2.csv",header = T)%>%
+  dplyr::select(.,-c(1))
 best.lambda <- result[which.min(result[,2]),1]
 # need rewrite
 finlasso <- as.matrix(path(newX,resp,grid=exp(seq(-8e-1,log(best.lambda), length=100))))
 lasso.beta <- finlasso[nrow(finlasso),2:dim(finlasso)[2]]
-
 # plot for cross validation
 result <- data.frame(result)
 cv.plot <- 
@@ -391,7 +353,7 @@ cv.plot <-
     xlab("log(Lambda)") + ylab("MSE") +
     geom_vline(xintercept = log(best.lambda),col=3,lty=3) +
     annotate("text", log(best.lambda), 0.1, label = paste("best log(lambda) = ", round(log(best.lambda), 3), sep = ""))
-cv.plot
+grid.arrange(path.plot,cv.plot,ncol=2)
 ```
 
 
@@ -407,7 +369,6 @@ pred.fun <- function(outcome,input, beta){
     pred.error = mean((as.vector(outcome)-prob)^2)
     return(pred.error)
 }
-
 # logistic regression by GLM
 log.beta <- c(logit.beta[2:length(logit.beta)],logit.beta[1])
 pred <- predict(logfit.1)
@@ -419,12 +380,12 @@ newton.pred <- pred.fun(resp,newX,newton.beta)
 # gradient decent
 grad.ite <- nrow(gradres)
 grad.beta <- gradres[nrow(gradres),3:dim(gradres)[2]]
-grad.pred <- pred.fun(resp,newX,grad.beta)
+grad.pred <- pred.fun(resp,newX,t(grad.beta))
 logmod.cv <- cv.glmnet(newdat$X[,-dim(newdat$X)[2]], y=newdat$y, alpha=1, family="binomial")
 best.lambda.func <- logmod$lambda.min
 logmod <- glmnet(newdat$X[,-dim(newdat$X)[2]], y=newdat$y, alpha=1, family="binomial",lambda = best.lambda.func)
 glmnet.beta <- c(coef.glmnet(logmod)[2:length(coef.glmnet(logmod))],coef.glmnet(logmod)[1])
-glmnet.pred <- predict(logmod,newdataX,type="response", lambda = best.lambda.func)
+glmnet.pred <- predict(logmod,as.matrix(newdataX),type="response", lambda = best.lambda.func)
 glmnet.pred <- mean((resp-glmnet.pred)^2)
 # lasso logistic
 lasso.ite <- nrow(finlasso)
@@ -449,18 +410,21 @@ perf.res[5,1] <- "NA"
 perf.res[5,2] <- round(glmnet.pred,2)
 
 # output-performace
-#kable(t(perf.res), "latex", caption = "The comparison of performance for estimation algorithms and models", booktabs = T) %>% 
-  #kable_styling(latex_options = c("hold_position", "scale_down")) %>%
-  #add_footnote(c("Dataset: Breast Cancer Diagnosis"),
-               #notation = "alphabet") 
-# output-beta
-#kable(t(beta.res), "latex", caption = "The comparison of performance for estimation algorithms and models", booktabs = T) %>% 
-  #kable_styling(latex_options = c("hold_position", "scale_down")) %>%
-  #add_footnote(c("Dataset: Breast Cancer Diagnosis"),
-               #notation = "alphabet")            
+kable(t(perf.res), "latex", caption = "The comparison of performance for estimation algorithms and models", booktabs = T) %>%
+kable_styling(latex_options = c("hold_position", "scale_down")) %>%
+add_footnote(c("Dataset: Breast Cancer Diagnosis"),
+notation = "alphabet")
 ```
 
-
+##
+**Model Comparison**
+```{r}
+# output-beta
+kable(t(beta.res), "latex", caption = "The comparison of performance for estimation algorithms and models", booktabs = T) %>%
+kable_styling(latex_options = c("hold_position", "scale_down")) %>%
+add_footnote(c("Dataset: Breast Cancer Diagnosis"),
+notation = "alphabet")
+```
 
 
 ## Conclusion
@@ -473,30 +437,6 @@ perf.res[5,2] <- round(glmnet.pred,2)
 
 ## Down Syndrome Data
 
-```{r, include = FALSE}
-knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE, comment = "")
-library(tidyverse)
-# plot
-library(ggcorrplot)
-library(ggpubr) 
-library(grid)
-library(gridExtra)
-# table
-library(kableExtra) 
-# lasso
-library(glmnet) 
-# parallel program
-library(parallel)
-library(doParallel)
-library(foreach)
-library(iterators)
-nCores <- 3
-registerDoParallel(nCores) 
-set.seed(99999)
-options(knitr.table.format = "latex")
-theme_set(theme_bw())
-```
-
 ```{r, echo=F}
 oridata <- read.csv("Down.csv")
 mydata <- oridata%>%
@@ -506,13 +446,14 @@ mydata <- oridata%>%
 
 
 - **Aim: ** Build a predictive model based on logistic regression to faciliate down syndrome diagnosis, and compared methods including and Pathwise Coordinate Descent with regularized logistic regression and smoothed bootstrap estimation.
-- **Variable Selection: ** Delete variables with high missing rate $(\geq 15\%)$
+- **Variable Selection: ** Delete variables with high missing rate $(\geq 20\%)$
 
 Also due to the intrinsic correlation between individual proteins (Fig. 2), it's impossible to apply normal regression methods to this dataset because of sigularity propblem. Instead, we choose regularized methods, LASSO, to be more specific.
 
 ##
 
 Figure 1: proteins' missing percentage
+
 ```{r, dpi = 300, ehco=F}
 x <- apply(is.na(oridata[,2:78]), 2, sum) / nrow(oridata)
 tibble(name = names(x), percentage = as.numeric(x)) %>% 
@@ -520,13 +461,6 @@ tibble(name = names(x), percentage = as.numeric(x)) %>%
   geom_bar(stat = "identity") +
   labs(x = "proteins", y = "missing percentage") + 
   theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 7))
-```
-
-
-##
-
-Figure 2: missingness plot and multicollinearity plot of the dataset
-```{r dpi = 300, echo=F}
 ### missing-------
 n <- dim(mydata)[1]
 ncol <- dim(mydata)[2]
@@ -541,13 +475,6 @@ X <- data.frame(dataX) %>%
 # response
 y <- as.vector(ifelse(mydata[,ncol] == "Down syndrome", 1, 0))
 dat <- list(y = y, X = as.matrix(X))
-# check correlation
-corplot <- cor(dataX) %>%
-  ggcorrplot(.,ggtheme = ggplot2::theme_gray,
-             colors = c("#6D9EC1", "white", "#E46726"),
-             tl.cex = 4, 
-             tl.srt = 90)
-grid.arrange(corplot,ncol=1)
 ```
 
 ## Methods
