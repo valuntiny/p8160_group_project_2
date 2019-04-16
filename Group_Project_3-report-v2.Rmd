@@ -300,6 +300,8 @@ co.fin.beta <- rbind(temp[lenb,],temp[1:(lenb-1),])
 logmod <- glmnet(dat$X[,-dim(dat$X)[2]], y = dat$y, alpha=1, family="binomial",lambda = best.lambda)
 res.comp <- cbind(co.fin.beta, as.matrix(coef.glmnet(logmod)))
 names(res.comp) = c("protein", "LASSO", "glmnet") # it's very similar
+res.comp = res.comp %>% 
+  mutate(dif = LASSO - glmnet)
 ```
 
 ### Model selection based on Smoothed Bootstrap Estimation for Logistic LASSO
