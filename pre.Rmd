@@ -1,11 +1,24 @@
 ---
-title: "Group Project 2 & 3"
+title: "P8160 Group Project Presentation"
+subtitle: "Optimization and Bootstrap"
 author: "Xinlei Chen, Guojing Wu, Yujing Yao"
+institute: "Department of Biostatistics, Columbia University"
+date: "April 19, 2019"
 header-includes:
 - \usepackage{booktabs}
 - \usepackage{makecell}
+- \usepackage{indentfirst}
+- \usepackage{graphicx}
+- \usepackage{geometry}
+- \usepackage{subfigure}
+- \usepackage{amsmath}
+- \usepackage{listings}
+- \usepackage{tikz}
+- \usetikzlibrary{matrix}
 output:
   beamer_presentation:
+    slide_level: 3
+    toc: true
     theme: "Warsaw"
     colortheme: "whale"
     fonttheme: "structurebold"
@@ -34,23 +47,28 @@ options(knitr.table.format = "latex")
 theme_set(theme_bw())
 ```
 
-## Introduction
+<!-- # level1 -->
+<!-- ## level2 -->
+<!-- ### level3 -->
+# Introduction 
+### Introduction 
 
 - **Group project 2:** Optimization algorithms on a breast cancer diagnosis dataset
 
 
 - **Group project 3:** Bootstrapping on developing classification model
 
-
-## Breast Cancer Data
+# Project: Optimization
+## Background
+### Breast Cancer Data
 
 - **Amin: ** Build a predictive model based on logistic regression to faciliate cancer diagnosis, and we compared methods including Newton Raphson, Gradient Decent with general logistic regression and Pathwise Coordinate Descent with regularized logistic regression
+
+### Multicollinearity plot of the dataset
+
 - **Variable Selection:** Reduce multicollinearity based on both correlation coefficient and eigenvalue of correlation matrix
 
-## 
-Multicollinearity plot of the dataset
-
-```{r, echo=FALSE}
+```{r, echo=FALSE, fig.height=4}
 ###### data manipulation
 mydata <- read.csv("breast-cancer-1.csv") 
 n <- dim(mydata)[1]
@@ -89,8 +107,8 @@ g2 <- colinearity.plot(newdataX)
 ggarrange(g1,g2, ncol=2, nrow=1, common.legend = TRUE, legend = "bottom", labels = "AUTO")
 ```
 
-
-## Logistic Model with Newton-Raphson
+## Method
+### Logistic Model
 
 ```{r, echo=FALSE}
 ###### 0.logistic regression
@@ -189,7 +207,6 @@ coordinatelasso <- function(lambda, dat, s, tol=1e-10, maxiter = 200){
   return(res)
 }
 logmod <- cv.glmnet(newdat$X[,-dim(newdat$X)[2]], y=newdat$y, alpha=1, family="binomial",type.measure="mse")
-
 ```
 
 **Logistic Regression:**
@@ -210,7 +227,7 @@ $$\log(\frac{\eta}{1-\eta}) = X\beta$$
 $$L(\beta; X, y) = \prod_{i=1}^n \{(\frac{\exp(X_{i}\beta)}{1+\exp(X_{i}\beta)})^{y_i}(\frac{1}{1+\exp(X_{i}\beta)})^{1-y_i}\}$$
 
 
-## 
+### Newton Raphson
 
 - The log likelihood:
 $$
@@ -232,9 +249,8 @@ $$
 $$
 where $W = diag(p_i(1-p_i)), i=1,\cdots,n$. The Hessian is negative definite.
 
-## 
 
-**Newton-Raphson**
+### Newton Raphson
 
 *Update coefficients*
 $$\beta_{i+1} = \beta_{i} -[\nabla^2 l(\beta_{i})]^{-1}\nabla l(\beta_{i})$$
@@ -247,7 +263,7 @@ $$
 - If $f(\theta_{i+1}(1)) \geq f(\theta_{i})$, then set $\theta_{i+1} = \theta_{i+1}(1)$
 - If $f(\theta_{i+1}(1)) \leq f(\theta_{i})$, search for a value $\gamma \in (0,1)$ for which $f(\theta_{i+1}(\gamma)) \geq f(\theta_{i})$, set $\theta_{i+1} = \theta_{i+1}(\gamma)$
 
-## 
+### Newton Raphson
 
 **Newton-Raphson: gradient decent**
 
@@ -263,7 +279,7 @@ The steps are:
 - use the principle of newton raphson to update the estimate, if the step size too large, step-halving step
 - stop searching until the convergences of the estimates.
 
-## Logistic-LASSO Model with Pathwise Coordinate Descent
+### Logistic-LASSO Model with Pathwise Coordinate Descent
 
 - Applied coordinate-wise descent with weighted update:
 $$
@@ -281,7 +297,7 @@ for some $\lambda \geq 0$
 
 
 ## Result
-**Estimation Path and Cross validation for LASSO**
+###  Estimation Path and Cross validation for LASSO
 
 ```{r, echo=FALSE}
 path <- function(inputx,inputy,grid){
@@ -357,8 +373,7 @@ grid.arrange(path.plot,cv.plot,ncol=2)
 ```
 
 
-##
-**Model Comparison**
+###  Model Comparison-prediction performance 
 
 ```{r, echo=FALSE}
 ######## compare prediction performance of all results
@@ -416,8 +431,7 @@ add_footnote(c("Dataset: Breast Cancer Diagnosis"),
 notation = "alphabet")
 ```
 
-##
-**Model Comparison**
+### Model Comparison-coefficient
 ```{r}
 # output-beta
 kable(t(beta.res), "latex", caption = "The comparison of performance for estimation algorithms and models", booktabs = T) %>%
@@ -428,14 +442,17 @@ notation = "alphabet")
 
 
 ## Conclusion
+### Conclusion and Discussion
 
 - The results of our methods are compared to the the same parameter estimation as R's built-in packages
 - Newton-Raphson has the convincing estimation and it converged quickly
 - Gradient decent method showed similar estimation as Newton-Raphson method but it was less efficient
 - For Pathwise Coordinate descent with LASSO logistic, according to the result of 5 fold cross validation and estimation result, the $\lambda$ with the lowest MSE and it shrunk six parameters to zero, which is comparable to the result by R's built-in packages. 
 
+# Project: Bootstrap
 
-## Down Syndrome Data
+## Background
+### Down Syndrome Data
 
 ```{r, echo=F}
 oridata <- read.csv("Down.csv")
@@ -450,7 +467,7 @@ mydata <- oridata%>%
 
 Also due to the intrinsic correlation between individual proteins (Fig. 2), it's impossible to apply normal regression methods to this dataset because of sigularity propblem. Instead, we choose regularized methods, LASSO, to be more specific.
 
-##
+### missingness
 
 Figure 1: proteins' missing percentage
 
@@ -479,7 +496,7 @@ dat <- list(y = y, X = as.matrix(X))
 
 ## Methods
 
-**Smoothed Bootstrap Estimation (SBE) and Inference**
+### Methods
 
 - First we need to prepare a couple of candidate models 
 - for each bootstrap in bootstrap with B times, select the best model and get estimates for the coefficient denoted as $t(y^*)$
@@ -488,7 +505,7 @@ dat <- list(y = y, X = as.matrix(X))
 \tilde{\mu} = s(y) = \frac{1}{B}\sum_{i=1}^B t(y^*)
 \]
 
-##
+### Smoothed Bootstrap Estimation (SBE) and Inference
 
 And in addition to the percentile confidence interval, the nonparametric delta-method estimate of standard deviation for $s(y)$ in the nonideal case is:
 \[
@@ -502,17 +519,11 @@ with $Y_{.j}^* = \sum_{i=1}^BY_{ij}^*/B$ and $t_.^* = \sum_{i=1}^Bt_{i}^*/B=s(y)
 
 ## Result
 
-
-
-**Pathwise coordinate descent logistic-LASSO**
+### Pathwise coordinate descent logistic-LASSO
 
 Fig. 3A shows us that as the $\lambda$ increases, all the variable estimates of parameters shrink accordingly since we penalize all the parameters. When $\lambda = 0$, the result is the same as least square method and when $\lambda$ is too large, all the estimates of parameters shrink to 0. Fig. 3B shows us the cross validation result for choosing the best $\lambda$. 
 
-## 
-
-Figure 3: results of PCD-LASSO
-
-```{r, dpi = 300, echo=F, fig.height=5}
+```{r, dpi = 300, echo=F, fig.height=4}
 ### regulized logistic regression: middle loop and inner loop
 sfun <- function(beta,lambda) sign(beta) * max(abs(beta)-lambda, 0)
 reglogitlasso <- function(lambda, dat, start, tol=1e-10, maxiter = 200,...){
@@ -617,17 +628,13 @@ grid.arrange(path.plot,cv.plot,ncol=2)
 temp <- read.csv("coeff.csv",header = T)
 lenb <- dim(temp)[1]
 co.fin.beta <- rbind(temp[lenb,],temp[1:(lenb-1),])
-```
-
-```{r, echo=F}
 # compare the result of our methods and glmnet
 logmod <- glmnet(dat$X[,-dim(dat$X)[2]], y = dat$y, alpha=1, family="binomial",lambda = best.lambda)
 res.comp <- cbind(co.fin.beta, as.matrix(coef.glmnet(logmod)))
 names(res.comp) = c("protein", "LASSO", "glmnet") # it's very similar
 ```
 
-##
-**Model selection based on SBE for Logistic Lasso**
+### Model selection based on SBE for Logistic Lasso
 
 algorithm:
 
@@ -637,11 +644,9 @@ algorithm:
 
 We can see the discrepancy between results of PCD-LASSO and SBE for Logistic LASSO both in prediction (Fig 4A) and finding the best $\lambda$ (Fig 4B), the results of PCD-LASSO is deviated from the center of empirical distribution.
 
-##
+### Lambda selection based on SBE for Logistic LASSO
 
-Figure 4: Lambda selection based on SBE for Logistic LASSO
-
-```{r, dpi = 300, echo=F}
+```{r, dpi = 300, echo=F,fig.height=4}
 ############ get the estimate and se by smmothing bootstrap
 n <- length(y)
 p <- dim(dataX)[2]+1
@@ -714,13 +719,9 @@ grid.arrange(s1+
 ```
 
 
-##
-
-**Cross validation for model prediction comparison**
+### Cross validation for model prediction comparison
 
 We used 10 fold cross-validation to compare two different models, one is with $\lambda$ selected from data, the other is selected from the SBE. Table 1 shows us that while the Cross Validation MSE are similar between these two methods, SBE provides a more accurate classification result.
-
-##
 
 ```{r, echo=FALSE}
 ################ cross validation for comparison of prediction error
@@ -755,13 +756,13 @@ cvresult <- rbind(round(cvcomp(dat,K=10)$error,4),round(cvcomp(dat,K=10)$mse,4))
 colnames(cvresult) <- c("Penalty chosen by data","Penalty selected from smoothed bootstrap")
 rownames(cvresult) <- c("Misclassification rate","Mean squred error")
 
-#kable(t(cvresult), "latex", caption = "The comparison of performance for two models", booktabs = T) %>% 
-  #kable_styling(latex_options = c("hold_position", "scale_down")) %>%
-  #add_footnote(c("Dataset: Proteins expression levels of Down syndrome"),
-               #notation = "alphabet") 
+kable(t(cvresult), "latex", caption = "The comparison of performance for two models", booktabs = T) %>%
+kable_styling(latex_options = c("hold_position", "scale_down")) %>%
+add_footnote(c("Dataset: Proteins expression levels of Down syndrome"),
+notation = "alphabet")
 ```
 
-## Significant random variable selection from SBE
+### Significant random variable selection from SBE
 
 Table 2 & 3 provide the full results of SBE for logistic LASSO. Our identification criterions here are: 
 
@@ -771,7 +772,7 @@ Table 2 & 3 provide the full results of SBE for logistic LASSO. Our identificati
 
 Based on that, we got 27 proteins that meets these two criterions (Table 1).
 
-##
+### Significant Proteins
 
 ```{r, echo=F, eval=F}
 ## select beta based on number of chosen
@@ -797,7 +798,6 @@ est.result <- cbind(origin =round(as.vector(co.fin.beta[,2]),4), # results from 
                     prob = as.vector(betachosen),
                     coeff,cf,newcf)
 rownames(est.result) <- c("Intercept", colnames(dataX))
-
 # choose covariate based on this criterion
 tmp = cbind(rownames(est.result), est.result)
 covname = tmp %>% 
@@ -806,18 +806,16 @@ covname = tmp %>%
          (lower.new > 0 | upper.new < 0)) %>% 
   select(V1) %>% 
   unlist()
-
 kable(est.result[covname,], "latex", caption = "Significant Proteins", booktabs = T) %>%
   kable_styling(latex_options = c("hold_position", "scale_down"),
                 font_size = 6,full_width = F) %>%
   add_footnote(c("Bootstap time=5000", "origin: estimation from PCD-LASSO", "prob: chosen probability from bootstrap", "doef: estimation from SBE", "sd: nonparamatric delta-method estimate of standard deviation", "lower, upper: quantile CI", "lower.new, upper.new: CI from nonparamatric delta-method estimate"),
                notation = "alphabet")
-
-kable(est.result[setdiff(rownames(est.result), covname),], "latex", caption = "Non-significant Proteins", booktabs = T) %>%
-  kable_styling(latex_options = c("hold_position", "scale_down"),
-                font_size = 6,full_width = F) %>%
-  add_footnote(c("Bootstap time=5000", "origin: estimation from PCD-LASSO", "prob: chosen probability from bootstrap", "doef: estimation from SBE", "sd: nonparamatric delta-method estimate of standard deviation", "lower, upper: quantile CI", "lower.new, upper.new: CI from nonparamatric delta-method estimate"),
-               notation = "alphabet")
+# kable(est.result[setdiff(rownames(est.result), covname),], "latex", caption = "Non-significant Proteins", booktabs = T) %>%
+#   kable_styling(latex_options = c("hold_position", "scale_down"),
+#                 font_size = 6,full_width = F) %>%
+#   add_footnote(c("Bootstap time=5000", "origin: estimation from PCD-LASSO", "prob: chosen probability from bootstrap", "doef: estimation from SBE", "sd: nonparamatric delta-method estimate of standard deviation", "lower, upper: quantile CI", "lower.new, upper.new: CI from nonparamatric delta-method estimate"),
+#                notation = "alphabet")
 ```
 
 ## Conclusion
