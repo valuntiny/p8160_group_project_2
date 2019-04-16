@@ -51,6 +51,7 @@ theme_set(theme_bw())
 <!-- ## level2 -->
 <!-- ### level3 -->
 # Introduction 
+## Introduction 
 ### Introduction 
 
 - **Group project 2:** Optimization algorithms on a breast cancer diagnosis dataset
