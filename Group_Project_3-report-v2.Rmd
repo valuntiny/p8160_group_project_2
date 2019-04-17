@@ -1,7 +1,7 @@
 ---
-title: "A study of bootstrapping on developing classification model"
+title: "A study of bootstrapping on developing a classification model"
 author: "Xinlei Chen, Guojing Wu and Yujing Yao"
-abstract: "This report discusses a study of bootstrap to develop classification model based on the proteins expression levels. Our goal is to build a predictive model based on logistic regression to facilicate Down syndrome diagnosis. We compared Pathwise Coordinate Descent Estimation with Regularized Logistic Regression and Smoothed Bootstrap Estimation. Our result shows that while the Cross Validation MSE are similar between these two methods, Smoothed Bootstrap Estimation provides a more accurate classification result And based on that, we identified a subset of proteins that are significantly associated with the Down syndrome."
+abstract: "This report discusses a study of bootstrap to develop a classification model based on the proteins expression levels. Our goal is to build a predictive model based on logistic regression to facilicate Down syndrome diagnosis. We compared Regularized Logistic Regression with Pathwise Coordinate Descent Estimation and Smoothed Bootstrap Estimation. Our result shows that while the cross validation MSE are similar between these two methods, Smoothed Bootstrap Estimation provides a more accurate classification result. Based on Smoothed Bootstrap Estimation, we identified a subset of proteins that are significantly associated with the Down syndrome."
 thanks:
 keywords: "Logistic Regression; Optimization; Pathwise Coordinate Descent; Regularized Logistic Regression; Smoothed bootstrap"
 date: "April 19, 2019"
@@ -30,18 +30,14 @@ header-includes:
 
 ```{r setup, include = FALSE}
 knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE, comment = "")
-library(tidyverse)
-# plot
-library(ggcorrplot)
+library(tidyverse) 
+library(ggcorrplot)# plot
 library(ggpubr) 
 library(grid)
-library(gridExtra)
-# table
-library(kableExtra) 
-# lasso
-library(glmnet) 
-# parallel program
-library(parallel)
+library(gridExtra) 
+library(kableExtra) # table
+library(glmnet) # lasso
+library(parallel)# parallel program
 library(doParallel)
 library(foreach)
 library(iterators)
@@ -61,9 +57,9 @@ mydata <- oridata%>%
 
 ## Background
 
-The data \textit{Down.csv} consists of the expression levels of 77 proteins/protein modifications that produced detectable signals in the nuclear fraction of cortex. It has 1080 rows and 79 columns. The first column \textbf{MouseID} identifies individual mice; The  column \textbf{2-78} are values of expression levels of 77 proteins. Column 79 indicates whether the mouse is a control or has Down syndrome. The goal is to develop classification model based on the proteins expression levels.  
+The data \textit{Down.csv} consists of the expression levels of 77 proteins/protein modifications that produced detectable signals in the nuclear fraction of cortex. It has 1080 rows and 79 columns. The first column \textbf{MouseID} identifies individual mice; The  column \textbf{2-78} are values of expression levels of 77 proteins. Column 79 indicates whether the mouse is a control or has Down syndrome. Our study goal is to develop classification model based on the proteins expression levels.  
 
-We found that data is missing for some of the covariates (Fig. 1), so we deleted those high missing rate(>15\%). For those covariates with missing rate < 15\%, we assumed them to be missing completely at random(MCAR), so we would analyze the complete cases in the following.
+We found that data is missing for some of the covariates (Fig. 1), so we deleted those high missing rate(rule of thumb >15\%). For those covariates with missing rate < 15\%, we assumed them to be missing completely at random(MCAR), thus we would analyze the complete cases in the following.
 
 \textbf{Figure 1: Proteins' missing percentage plot}
 
@@ -104,7 +100,7 @@ corplot <- cor(dataX) %>%
 grid.arrange(corplot,ncol=1)
 ```
 
-In this project, our goal is to first assess Regularized Logistic Regression and Smoothed Bootstrap Estimation methods, and compare the result with the originial paper. Second is to provide inference of the final model, and select significant proteins based on that.
+In this project, our goal is to first assess Regularized Logistic Regression with Pathwise Coordinate Descent Estimation method and Smoothed Bootstrap Estimation method, and compare the result via cross validation and in the way presented in the originial paper. Second is to provide inference through Smoothed Bootstrap result, and select significant proteins based on that.
 
 ## Method
 
@@ -155,9 +151,15 @@ The above amounts to a sequence of nested loops:
 In our problem, care is taken to avoid coefficients diverging in order to achieve fitted probabilities of 0 or 1 which is the warning message by the R package. When a probability with $\epsilon = 1e-5$ of 1, we set it to 1, and set the weights to $\epsilon$. 0 is treated similarly.
 
 
-### Smoothed Bootstrap Estimation and inference
+### Smoothed Bootstrap Model selection and Inference
 
-Classical statistical theory ignores model selection in assessing estimation accuracy. Here we consider bootstrap methods for computing standard errors and confidence intervals that take model selection into account. The methodology involves bagging, also known as bootstrap smoothing (Efron and Tibshirani 1996), to tame the erratic discontinuities of selection-based estimators. 
+Classical statistical theory ignores model selection in assessing estimation accuracy. Here we consider bootstrap methods for computing standard errors and confidence intervals that take model selection into account. The methodology involves bagging, also known as bootstrap smoothing (Efron and Tibshirani 1996), to tame the erratic discontinuities of selection-based estimators. In this section, we are still dealing with regularized lasso with this dataset, we wanted to apply smoothed bootstrap in order to get better estimates and inference result. 
+
+Algorithm:
+
+- bootstrap data from the original dataset
+- do cross validation and select the best $\lambda_{i}^{\ast}$ for each repetition
+- calculate average $\lambda^{\ast} = \frac{1}{B}\sum_{i=1}^B \lambda_i^{\ast}$
 
 Point estimation:
 
@@ -168,6 +170,7 @@ Point estimation:
 \tilde{\mu} = s(y) = \frac{1}{B}\sum_{i=1}^B t(y^*)
 \]
 
+Inference: 
 And in addition to the percentile confidence interval, the nonparametric delta-method estimate of standard deviation for $s(y)$ in the nonideal case is:
 \[
 \tilde{sd}_B = [\sum_{i=1}^n\hat{cov}_j^2]^{1/2}
@@ -186,7 +189,7 @@ Fig. 3A shows us that as the $\lambda$ increases, all the variable estimates of 
 
 \textbf{Figure 3: results of Regularized Logistic Regression}
 
-```{r, dpi = 300}
+```{r, dpi = 300, fig.height=3}
 ### regulized logistic regression: middle loop and inner loop
 sfun <- function(beta,lambda) sign(beta) * max(abs(beta)-lambda, 0)
 reglogitlasso <- function(lambda, dat, start, tol=1e-10, maxiter = 200,...){
@@ -306,19 +309,11 @@ res.comp = res.comp %>%
 
 ### Model selection based on Smoothed Bootstrap Estimation for Logistic LASSO
 
-We are still dealing with regularized lasso with this dataset, we wanted to apply smoothed bootstrap in order to get better estimates and inference result. 
-
-algorithm:
-
-- bootstrap data from the original dataset
-- do cross validation and select the best $\lambda_{i}^{\ast}$ for each repetition
-- calculate average $\lambda^{\ast} = \frac{1}{B}\sum_{i=1}^B \lambda_i^{\ast}$
-
-We can see the discrepancy between results of Regularized Logistic Regression and Smoothed Bootstrap Estimation for Logistic LASSO both in prediction (Fig 4A) and finding the best $\lambda$ (Fig 4B), the results of Regularized Logistic Regression is deviated from the center of empirical distribution.
+From Fig.4, we can see the discrepancy between results of Regularized Logistic Regression and Smoothed Bootstrap Estimation for Logistic LASSO both in prediction (Fig 4A) and finding the best $\lambda$ (Fig 4B), the results of Regularized Logistic Regression is deviated from the center of empirical distribution. The skewness of the distribution is caused by the non asymptotic normal property of Lasso estimator.
 
 \textbf{Figure 4: Lambda selection based on Smoothed Bootstrap Estimation for Logistic LASSO}
 
-```{r, dpi = 300}
+```{r, dpi = 300, fig.height=3}
 ############ get the estimate and se by smmothing bootstrap
 n <- length(y)
 p <- dim(dataX)[2]+1
@@ -392,7 +387,7 @@ grid.arrange(s1+
 
 ### Cross validation for model prediction comparison
 
-We used 10 fold cross-validation to compare two different models, one is with $\lambda$ selected from data, the other is selected from the Smoothed Bootstrap Estimation. Table 1 shows us that there is not much of a differences between these two methods either regarding to misclassification or MSE.
+We used 10 fold cross-validation to compare two different models, one is with $\lambda$ selected from data, the other is selected from the Smoothed Bootstrap Estimation. Table 1 shows us that there is not much of a differences between these two methods either regarding to misclassification or MSE, though Smoothed Bootstrap Estimation provides a slightly more accurate classification result.
 
 ```{r}
 ################ cross validation for comparison of prediction error
@@ -434,7 +429,7 @@ kable(t(cvresult), "latex", caption = "The comparison of performance for two mod
 
 #### Significant random variable selection from Smoothed Bootstrap Estimation
 
-Table 2 & 3 provide the full results of Smoothed Bootstrap Estimation for logistic LASSO. Our identification criterions here are: 
+Table 2 and  Table 3(in the appendix) provide the full results of Smoothed Bootstrap Estimation for logistic LASSO. Our identification criterions here are: 
 
 1. the chosen probability greater than 96\%
 
@@ -481,7 +476,9 @@ kable(est.result[covname,], "latex", caption = "Significant Proteins", booktabs 
                 font_size = 6,full_width = F) %>%
   add_footnote(c("Bootstap time=5000", "origin: estimation from Regularized Logistic Regression", "prob: chosen probability from bootstrap", "doef: estimation from Smoothed Bootstrap", "sd: nonparamatric delta-method estimate of standard deviation", "lower, upper: quantile CI", "lower.new, upper.new: CI from nonparamatric delta-method estimate"),
                notation = "alphabet")
+```
 
+```{r}
 kable(est.result[setdiff(rownames(est.result), covname),], "latex", caption = "Non-significant Proteins", booktabs = T) %>%
   kable_styling(latex_options = c("hold_position", "scale_down"),
                 font_size = 6,full_width = F) %>%
@@ -491,11 +488,12 @@ kable(est.result[setdiff(rownames(est.result), covname),], "latex", caption = "N
 
 ## Conclusions
 
-In this study, we first used cross validation to find the best $\lambda$ for Regularized Logistic Regression prediction. Then we used bootstrap to plot the histogram of the best $\lambda$ for LASSO and the prediction of subject 1. It showed that classical statistical theory does ignore the model selection process in assessing estimation accuracy, which is consistant with the Efron paper results. The cross validation result of comparing Regularized Logistic Regression best $\lambda$ and Smoothed Bootstrap Estimation best $\lambda$ showed that these two methods provided similar accuracy. Finally, we conducted inference for the model based on Smoothed Bootstrap Estimation, and identified a subset of proteins that are significantly associated with the Down syndrome.
+In this study, we applied two methods to get estimates for Penalized Logistic Lasso Regression. First in Pathwise Coordinate Descent Estimation we used cross validation to find the best $\lambda$; then we performed Smoothed Bootstrap to select the best $\lambda$. The cross validation result of comparing Pathwise Coordinate Descent estimated best $\lambda$ and Smoothed Bootstrap estimated best $\lambda$ showed that these two methods provided similar accuracy in Penalized Logistic Lasso Regression prediction. In addtion, we used bootstrap result to plot the histogram of the best $\lambda$ for LASSO and the prediction of subject 1. It showed that classical statistical theory does ignore the model selection process in assessing estimation accuracy, which is consistant with the Efron paper results. Finally, we conducted inference based on Smoothed Bootstrap Estimation, and identified a subset of proteins that are significantly associated with the Down syndrome.
 
 ## References
 \begin{enumerate}
 \item[1] Efron, Bradley. "Estimation and accuracy after model selection." Journal of the American Statistical Association 109.507 (2014): 991-1007.
+\item[2] Friedman, Jerome, Trevor Hastie, and Rob Tibshirani. "Regularization paths for generalized linear models via coordinate descent." Journal of statistical software 33.1 (2010): 1.
 \end{enumerate}
 
 
