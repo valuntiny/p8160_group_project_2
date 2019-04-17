@@ -54,18 +54,24 @@ theme_set(theme_bw())
 ## Introduction 
 ### Introduction 
 
-- **Group project 2:** Optimization algorithms on a breast cancer diagnosis dataset
+**Group project 2:** Optimization algorithms on a breast cancer diagnosis dataset
 
+- **Aim: ** Build a predictive model based on logistic regression to faciliate cancer diagnosis, and we compared methods including Newton Raphson, Gradient Decent with general logistic regression and Pathwise Coordinate Descent with regularized logistic regression
 
-- **Group project 3:** Bootstrapping on developing classification model
+### Introduction 
+
+**Group project 3:** Bootstrapping on developing classification model
+
+- **Aim: ** Build a predictive model based on logistic regression to faciliate down syndrome diagnosis, and compared methods including and Pathwise Coordinate Descent with regularized logistic regression and smoothed bootstrap estimation.
 
 # Project: Optimization
 ## Background
 ### Breast Cancer Data
 
-- **Amin: ** Build a predictive model based on logistic regression to faciliate cancer diagnosis, and we compared methods including Newton Raphson, Gradient Decent with general logistic regression and Pathwise Coordinate Descent with regularized logistic regression
+The data breast-cancer.csv have 569 row and 33 columns. The first two columns inclues covariate “ID” which lables individual breast tissue images and covariate “Diagnonsis” which indentifies if the image is coming from cancer tissue or benign cases. There are 357 benign and 212 malignant cases. The other 30 columns correspond to mean, standard deviation and the largest values (points on the tails) of the distributions of 10 features (radiusm texture, perimeter, area, smoothness, compactness, concavity, concave points, symmetry, fractal dimension) computed for the cellnuclei.
 
-### Multicollinearity plot of the dataset
+
+### Multicollinearity Plot of the Dataset
 
 - **Variable Selection:** Reduce multicollinearity based on both correlation coefficient and eigenvalue of correlation matrix
 
@@ -218,25 +224,16 @@ $X$: the $n\times p$ design matrix ($X_{i}$ denote the $i$th row)
 
 $\beta$: the $p\times 1$ coefficient
 
-
-- The logistic regression model: 
-
-$$\log(\frac{\eta}{1-\eta}) = X\beta$$
-
-- The likelihood function:
-
-$$L(\beta; X, y) = \prod_{i=1}^n \{(\frac{\exp(X_{i}\beta)}{1+\exp(X_{i}\beta)})^{y_i}(\frac{1}{1+\exp(X_{i}\beta)})^{1-y_i}\}$$
+- Object: maximize log-likelihood function
+$$
+\begin{aligned}
+max \sum_{i=1}^n \{y_i(X_{i}\beta)-\log(1+\exp(X_{i}\beta))\}
+\end{aligned}
+$$
 
 
 ### Newton Raphson
 
-- The log likelihood:
-$$
-\begin{aligned}
-l(\beta) 
-& = \sum_{i=1}^n \{y_i(X_{i}\beta)-\log(1+\exp(X_{i}\beta))\}
-\end{aligned}
-$$
 
 - The gradient:
 $$
@@ -253,9 +250,7 @@ where $W = diag(p_i(1-p_i)), i=1,\cdots,n$. The Hessian is negative definite.
 
 ### Newton Raphson
 
-*Update coefficients*
-$$\beta_{i+1} = \beta_{i} -[\nabla^2 l(\beta_{i})]^{-1}\nabla l(\beta_{i})$$
-*Step-halving*
+*Update coefficients: step-halving*
 $$
 \beta_{i+1}(\gamma) = \beta_{i} - \gamma[\nabla^2 l(\beta_{i})]^{-1}\nabla l(\beta_{i})
 $$
@@ -264,41 +259,30 @@ $$
 - If $f(\theta_{i+1}(1)) \geq f(\theta_{i})$, then set $\theta_{i+1} = \theta_{i+1}(1)$
 - If $f(\theta_{i+1}(1)) \leq f(\theta_{i})$, search for a value $\gamma \in (0,1)$ for which $f(\theta_{i+1}(\gamma)) \geq f(\theta_{i})$, set $\theta_{i+1} = \theta_{i+1}(\gamma)$
 
-### Newton Raphson
+*Gradient Descent:*
 
-**Newton-Raphson: gradient decent**
-
-For Newton's method with a large $p$, the computational burden in calculating the inverse of the Hessian Matrix $[\nabla^2 f(\beta_{i})]^{-1}$ increases quickly with $p$. One can update
 $$
 \beta_{i+1} = \beta_{i} + H_{i}\nabla f(\beta_{i})
 $$
-where $H_{i} = (X^TX)^{-1}$ for every $i$. This is easy to compute, but could be slow in convergence.
+where $H_{i} = (X^TX)^{-1}$ for every $i$.
 
-The steps are:
-
-- get the objective (loglik,grad,Hess) function
-- use the principle of newton raphson to update the estimate, if the step size too large, step-halving step
-- stop searching until the convergences of the estimates.
 
 ### Logistic-LASSO Model with Pathwise Coordinate Descent
 
-- Applied coordinate-wise descent with weighted update:
+- Object: maximize the penalized log likelihood:
+$$\max_{\beta \in \mathbb{R}^{p+1}} \frac{1}{n}\sum_{i=1}^n  \{y_i(X_{i}\beta)-\log(1+\exp(X_{i}\beta))\}-\lambda \sum_{j=0}^p |\beta_j|$$
+for some $\lambda \geq 0$
+
+- Coordinate-wise descent with weighted update:
 $$
 \tilde{\beta}^{lasso}_{j}(\lambda) \leftarrow \frac{S(\sum_{i=1}^{n}\omega_{i}x_{i,j}(y_{i} - \tilde{y_{i}}^{(-j)}), \lambda)}{\sum_{i=1}^n\omega_{i}x_{i,j}^{2}}
 $$
 where $\tilde{y_{i}}^{(-j)} = \sum_{k \neq j}x_{i,k}\tilde{\beta_{k}}$ and $S(\hat{\beta}, \lambda) = sign(\hat{\beta})(|\hat{\beta}| - \lambda)_{+}$
 
 
-- In the context of logistic regression, we are aiming to maximize the penalized log likelihood:
-$$\max_{\beta \in \mathbb{R}^{p+1}} \frac{1}{n}\sum_{i=1}^n  \{y_i(X_{i}\beta)-\log(1+\exp(X_{i}\beta))\}-\lambda \sum_{j=0}^p |\beta_j|$$
-for some $\lambda \geq 0$
-
-
-
-
 
 ## Result
-###  Estimation Path and Cross validation for LASSO
+###  Estimation Path and Cross Validation for LASSO
 
 ```{r, echo=FALSE}
 path <- function(inputx,inputy,grid){
@@ -374,7 +358,7 @@ grid.arrange(path.plot,cv.plot,ncol=2)
 ```
 
 
-###  Model Comparison-prediction performance 
+###  Model Comparison-Prediction Performance 
 
 ```{r, echo=FALSE}
 ######## compare prediction performance of all results
@@ -432,7 +416,7 @@ add_footnote(c("Dataset: Breast Cancer Diagnosis"),
 notation = "alphabet")
 ```
 
-### Model Comparison-coefficient
+### Model Comparison-Coefficient
 ```{r}
 # output-beta
 kable(t(beta.res), "latex", caption = "The comparison of performance for estimation algorithms and models", booktabs = T) %>%
@@ -462,15 +446,15 @@ mydata <- oridata%>%
   filter(complete.cases(.))
 ```
 
+The data Down.csv consists of the expression levels of 77 proteins/protein modifications that produced detectable signals in the nuclear fraction of cortex. It has 1080 rows and 79 columns. The first column MouseID identifies individual mice; The column 2-78 are values of expression levels of 77 proteins. Column 79 indicates whether the mouse is a control or has Down syndrome. The goal is to develop classification model based on the proteins expression levels.
 
-- **Aim: ** Build a predictive model based on logistic regression to faciliate down syndrome diagnosis, and compared methods including and Pathwise Coordinate Descent with regularized logistic regression and smoothed bootstrap estimation.
+### Missingness
+
 - **Variable Selection: ** Delete variables with high missing rate $(\geq 20\%)$
 
-Also due to the intrinsic correlation between individual proteins (Fig. 2), it's impossible to apply normal regression methods to this dataset because of sigularity propblem. Instead, we choose regularized methods, LASSO, to be more specific.
+Also due to the intrinsic correlation between individual proteins, it's impossible to apply normal regression methods to this dataset because of sigularity propblem. Instead, we choose regularized methods, LASSO, to be more specific.
 
-### missingness
-
-Figure 1: proteins' missing percentage
+### Missingness
 
 ```{r, dpi = 300, ehco=F}
 x <- apply(is.na(oridata[,2:78]), 2, sum) / nrow(oridata)
@@ -497,7 +481,20 @@ dat <- list(y = y, X = as.matrix(X))
 
 ## Methods
 
-### Methods
+### Pathwise Coordinate Descent with Regularized Logistic Regression
+
+- Object: maximize the penalized log likelihood:
+$$\max_{\beta \in \mathbb{R}^{p+1}} \frac{1}{n}\sum_{i=1}^n  \{y_i(X_{i}\beta)-\log(1+\exp(X_{i}\beta))\}-\lambda \sum_{j=0}^p |\beta_j|$$
+for some $\lambda \geq 0$
+
+- Coordinate-wise descent with weighted update:
+$$
+\tilde{\beta}^{lasso}_{j}(\lambda) \leftarrow \frac{S(\sum_{i=1}^{n}\omega_{i}x_{i,j}(y_{i} - \tilde{y_{i}}^{(-j)}), \lambda)}{\sum_{i=1}^n\omega_{i}x_{i,j}^{2}}
+$$
+where $\tilde{y_{i}}^{(-j)} = \sum_{k \neq j}x_{i,k}\tilde{\beta_{k}}$ and $S(\hat{\beta}, \lambda) = sign(\hat{\beta})(|\hat{\beta}| - \lambda)_{+}$
+
+
+### Smoothed Bootstrap Estimation and Inference
 
 - First we need to prepare a couple of candidate models 
 - for each bootstrap in bootstrap with B times, select the best model and get estimates for the coefficient denoted as $t(y^*)$
@@ -506,7 +503,7 @@ dat <- list(y = y, X = as.matrix(X))
 \tilde{\mu} = s(y) = \frac{1}{B}\sum_{i=1}^B t(y^*)
 \]
 
-### Smoothed Bootstrap Estimation (SBE) and Inference
+### Smoothed Bootstrap Estimation and Inference
 
 And in addition to the percentile confidence interval, the nonparametric delta-method estimate of standard deviation for $s(y)$ in the nonideal case is:
 \[
@@ -520,9 +517,9 @@ with $Y_{.j}^* = \sum_{i=1}^BY_{ij}^*/B$ and $t_.^* = \sum_{i=1}^Bt_{i}^*/B=s(y)
 
 ## Result
 
-### Pathwise coordinate descent logistic-LASSO
+### Pathwise Coordinate Descent Logistic-LASSO
 
-Fig. 3A shows us that as the $\lambda$ increases, all the variable estimates of parameters shrink accordingly since we penalize all the parameters. When $\lambda = 0$, the result is the same as least square method and when $\lambda$ is too large, all the estimates of parameters shrink to 0. Fig. 3B shows us the cross validation result for choosing the best $\lambda$. 
+The left-hand side plot shows us that as the $\lambda$ increases, all the variable estimates of parameters shrink accordingly since we penalize all the parameters. When $\lambda = 0$, the result is the same as least square method and when $\lambda$ is too large, all the estimates of parameters shrink to 0. The right-hand side plot shows us the cross validation result for choosing the best $\lambda$. 
 
 ```{r, dpi = 300, echo=F, fig.height=4}
 ### regulized logistic regression: middle loop and inner loop
@@ -635,7 +632,7 @@ res.comp <- cbind(co.fin.beta, as.matrix(coef.glmnet(logmod)))
 names(res.comp) = c("protein", "LASSO", "glmnet") # it's very similar
 ```
 
-### Model selection based on SBE for Logistic Lasso
+### Model Selection Based on Smooth Bootstrap Estimation for Logistic-LASSO
 
 algorithm:
 
@@ -643,11 +640,11 @@ algorithm:
 - do cross validation and select the best $\lambda_{i}^{\ast}$ for each repetition
 - calculate average $\lambda^{\ast} = \frac{1}{B}\sum_{i=1}^B \lambda_i^{\ast}$
 
-We can see the discrepancy between results of PCD-LASSO and SBE for Logistic LASSO both in prediction (Fig 4A) and finding the best $\lambda$ (Fig 4B), the results of PCD-LASSO is deviated from the center of empirical distribution.
+We can see the discrepancy between results of PCD-LASSO and smooth bootstrap estimation for Logistic LASSO both in prediction and finding the best $\lambda$, the results of PCD-LASSO is deviated from the center of empirical distribution.
 
-### Lambda selection based on SBE for Logistic LASSO
+### Lambda Selection Based on Smooth Bootstrap Estimation for Logistic LASSO
 
-```{r, dpi = 300, echo=F,fig.height=4}
+```{r, dpi = 300, echo=F,fig.height=5}
 ############ get the estimate and se by smmothing bootstrap
 n <- length(y)
 p <- dim(dataX)[2]+1
@@ -695,34 +692,34 @@ s1 <- ggplot(out.df,aes(x=out.df$subject.1)) +
 s2 <- ggplot(out.df,aes(x=out.df$min.lambda)) +
   geom_histogram(colour="black", fill="white")+
   #geom_density()
-  ggtitle("B) penalty term from smoothed bootstrap")+
+  ggtitle("B) Penalty term from smoothed bootstrap")+
   theme(plot.title = element_text(size = 8))+
   xlab("Lambda") + ylab("Density") +
   geom_vline(xintercept = best.lambda.s,col=2,lty=2) + 
   geom_vline(xintercept = best.lambda,col=3,lty=3) 
 grid.arrange(s1+
   annotation_custom(grid.text(paste("Expected value from data= ", round(sub1, 4), sep = ""),
-                              x=0.5,y=0.5, hjust=0,
-                   gp=gpar(col=3,fontsize=6, fontface="italic")))+
+                              x=0.3,y=0.5, hjust=0,
+                   gp=gpar(col=3,fontsize=12, fontface="italic")))+
   annotation_custom(grid.text(paste("Expected value from bootstrap= ",
                                     round(mean(out.df$subject.1), 4), sep = ""),
                               x=0.3,y=0.6, hjust=0,
-                   gp=gpar(col=2,fontsize=6, fontface="italic"))),
+                   gp=gpar(col=2,fontsize=12, fontface="italic"))),
              s2+ 
   annotation_custom(grid.text(paste("Lambda from data= ", round(best.lambda, 6), sep = ""),
                               x=0.2,y=0.5, hjust=0,
-                           gp=gpar(col=3,fontsize=6, fontface="italic")))+
+                           gp=gpar(col=3,fontsize=12, fontface="italic")))+
   annotation_custom(grid.text( paste("Lambda from smoothed bootstrap = ", 
                                       round(best.lambda.s, 6),sep = ""),
                                 x=0.1,y=0.6, hjust=0,
-                           gp=gpar(col=2,fontsize=6, fontface="italic"))),
+                           gp=gpar(col=2,fontsize=12, fontface="italic"))),
   ncol=2)
 ```
 
 
-### Cross validation for model prediction comparison
+### Cross Validation for Model Prediction Comparison
 
-We used 10 fold cross-validation to compare two different models, one is with $\lambda$ selected from data, the other is selected from the SBE. Table 1 shows us that while the Cross Validation MSE are similar between these two methods, SBE provides a more accurate classification result.
+We used 10 fold cross-validation to compare two different models, one is with $\lambda$ selected from data, the other is selected from the SBE. Table 1 shows us that while the Cross Validation MSE are similar between these two methods, smooth bootstrap estimation provides a more accurate classification result.
 
 ```{r, echo=FALSE}
 ################ cross validation for comparison of prediction error
@@ -763,15 +760,15 @@ add_footnote(c("Dataset: Proteins expression levels of Down syndrome"),
 notation = "alphabet")
 ```
 
-### Significant random variable selection from SBE
+### Significant Random Variable Selection from Smooth Bootstrap Estimation
 
-Table 2 & 3 provide the full results of SBE for logistic LASSO. Our identification criterions here are: 
+Table 2 & 3 provide the full results of smooth bootstrap estimation for logistic LASSO. Our identification criterions here are: 
 
 1. the chosen probability greater than 96\%
 
-2. SBE confidence interval excludes zero. 
+2. smooth bootstrap estimation confidence interval excludes zero. 
 
-Based on that, we got 27 proteins that meets these two criterions (Table 1).
+Based on that, we got 27 proteins that meets these two criterions (Table 4).
 
 ### Significant Proteins
 
@@ -812,13 +809,13 @@ kable(est.result[covname,], "latex", caption = "Significant Proteins", booktabs 
                 font_size = 6,full_width = F) %>%
   add_footnote(c("Bootstap time=5000", "origin: estimation from PCD-LASSO", "prob: chosen probability from bootstrap", "doef: estimation from SBE", "sd: nonparamatric delta-method estimate of standard deviation", "lower, upper: quantile CI", "lower.new, upper.new: CI from nonparamatric delta-method estimate"),
                notation = "alphabet")
-# kable(est.result[setdiff(rownames(est.result), covname),], "latex", caption = "Non-significant Proteins", booktabs = T) %>%
-#   kable_styling(latex_options = c("hold_position", "scale_down"),
-#                 font_size = 6,full_width = F) %>%
-#   add_footnote(c("Bootstap time=5000", "origin: estimation from PCD-LASSO", "prob: chosen probability from bootstrap", "doef: estimation from SBE", "sd: nonparamatric delta-method estimate of standard deviation", "lower, upper: quantile CI", "lower.new, upper.new: CI from nonparamatric delta-method estimate"),
-#                notation = "alphabet")
+kable(est.result[setdiff(rownames(est.result), covname),], "latex", caption = "Non-significant Proteins", booktabs = T) %>%
+   kable_styling(latex_options = c("hold_position", "scale_down"),
+                 font_size = 6,full_width = F) %>%
+   add_footnote(c("Bootstap time=5000", "origin: estimation from PCD-LASSO", "prob: chosen probability from bootstrap", "doef: estimation from SBE", "sd: nonparamatric delta-method estimate of standard deviation", "lower, upper: quantile CI", "lower.new, upper.new: CI from nonparamatric delta-method estimate"),
+                notation = "alphabet")
 ```
 
 ## Conclusion
 
-In this study, we first used cross validation to find the best $\lambda$ for PCD-LASSO prediction. Then we used bootstrap to plot empirical distribution of the best $\lambda$ for LASSO and the prediction of subject 1, which proved that classical statistical theory does ignore model selection in assessing estimation accuracy. The cross validation result of comparing PCD-LASSO best $\lambda$ and SBE best $\lambda$ also showed that SBE method provide a better result. Then based on the chosen probability and SBE CI, we identified a subset of proteins that are significantly associated with the Down syndrome.
+In this study, we first used cross validation to find the best $\lambda$ for PCD-LASSO prediction. Then we used bootstrap to plot empirical distribution of the best $\lambda$ for LASSO and the prediction of subject 1, which proved that classical statistical theory does ignore model selection in assessing estimation accuracy. The cross validation result of comparing PCD-LASSO best $\lambda$ and smooth bootstrap estimation best $\lambda$ also showed that smooth bootstrap estimation method provide a better result. Then based on the chosen probability and smooth bootstrap estimation CI, we identified a subset of proteins that are significantly associated with the Down syndrome.
