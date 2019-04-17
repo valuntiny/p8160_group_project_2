@@ -420,7 +420,7 @@ notation = "alphabet")
 ```{r}
 # output-beta
 kable(t(beta.res), "latex", caption = "The comparison of performance for estimation algorithms and models", booktabs = T) %>%
-kable_styling(latex_options = c("hold_position", "scale_down")) %>%
+kable_styling(latex_options = c("hold_position", "scale_down"), bootstrap_options = c("condensed")) %>%
 add_footnote(c("Dataset: Breast Cancer Diagnosis"),
 notation = "alphabet")
 ```
@@ -772,7 +772,7 @@ Based on that, we got 27 proteins that meets these two criterions (Table 4).
 
 ### Significant Proteins
 
-```{r, echo=F, eval=F}
+```{r, echo=F}
 ## select beta based on number of chosen
 # colnames(out.df) <- c("min.lambda","subject.1","intercpt",colnames(dataX),
 #                    sprintf("b[%d]",seq(1:p)),sprintf("n[%d]",seq(1:n)))
@@ -809,12 +809,18 @@ kable(est.result[covname,], "latex", caption = "Significant Proteins", booktabs 
                 font_size = 6,full_width = F) %>%
   add_footnote(c("Bootstap time=5000", "origin: estimation from PCD-LASSO", "prob: chosen probability from bootstrap", "doef: estimation from SBE", "sd: nonparamatric delta-method estimate of standard deviation", "lower, upper: quantile CI", "lower.new, upper.new: CI from nonparamatric delta-method estimate"),
                notation = "alphabet")
+```
+
+### Non-significant Proteins
+
+```{r, echo=F}
 kable(est.result[setdiff(rownames(est.result), covname),], "latex", caption = "Non-significant Proteins", booktabs = T) %>%
    kable_styling(latex_options = c("hold_position", "scale_down"),
-                 font_size = 6,full_width = F) %>%
+                 font_size = 6, full_width = F, bootstrap_options = c("condensed")) %>%
    add_footnote(c("Bootstap time=5000", "origin: estimation from PCD-LASSO", "prob: chosen probability from bootstrap", "doef: estimation from SBE", "sd: nonparamatric delta-method estimate of standard deviation", "lower, upper: quantile CI", "lower.new, upper.new: CI from nonparamatric delta-method estimate"),
                 notation = "alphabet")
 ```
+
 
 ## Conclusion
 
