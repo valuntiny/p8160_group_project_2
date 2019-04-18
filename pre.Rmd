@@ -450,7 +450,7 @@ The data Down.csv consists of the expression levels of 77 proteins/protein modif
 
 ### Missingness
 
-- **Variable Selection: ** Delete variables with high missing rate $(\geq 20\%)$
+- **Variable Selection: ** Delete variables with high missing rate $(\geq 15\%)$
 
 Also due to the intrinsic correlation between individual proteins, it's impossible to apply normal regression methods to this dataset because of sigularity propblem. Instead, we choose regularized methods, LASSO, to be more specific.
 
