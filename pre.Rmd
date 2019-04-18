@@ -34,9 +34,8 @@ library(matrixcalc) #is.negative.def
 library(kableExtra) # table
 library(glmnet) # lasso
 library(grid)
-library(gridExtra)
-# parallel program
-library(parallel)
+library(gridExtra) 
+library(parallel)# parallel program
 library(doParallel)
 library(foreach)
 library(iterators)
@@ -47,28 +46,28 @@ options(knitr.table.format = "latex")
 theme_set(theme_bw())
 ```
 
-<!-- # level1 -->
-<!-- ## level2 -->
-<!-- ### level3 -->
 # Introduction 
-## Introduction 
-### Introduction 
+### Introduction of today's presentation
 
-**Group project 2:** Optimization algorithms on a breast cancer diagnosis dataset
+- **Group project 2:** Optimization algorithms on a breast cancer diagnosis dataset
+  + Build a predictive model based on logistic regression to faciliate cancer diagnosis
+  + Compare methods including Newton Raphson, Gradient Decent with general logistic regression and Pathwise Coordinate Descent with regularized logistic regression
 
-- **Aim: ** Build a predictive model based on logistic regression to faciliate cancer diagnosis, and we compared methods including Newton Raphson, Gradient Decent with general logistic regression and Pathwise Coordinate Descent with regularized logistic regression
-
-### Introduction 
-
-**Group project 3:** Bootstrapping on developing classification model
-
-- **Aim: ** Build a predictive model based on logistic regression to faciliate down syndrome diagnosis, and compared methods including and Pathwise Coordinate Descent with regularized logistic regression and smoothed bootstrap estimation.
+- **Group project 3:** Bootstrapping on developing classification model
+  + Build a predictive model based on regularized logistic regression to faciliate down syndrome diagnosis     
+  + Compare methods including Pathwise Coordinate Descent and smoothed bootstrap estimation
 
 # Project: Optimization
 ## Background
 ### Breast Cancer Data
 
-The data breast-cancer.csv have 569 row and 33 columns. The first two columns inclues covariate “ID” which lables individual breast tissue images and covariate “Diagnonsis” which indentifies if the image is coming from cancer tissue or benign cases. There are 357 benign and 212 malignant cases. The other 30 columns correspond to mean, standard deviation and the largest values (points on the tails) of the distributions of 10 features (radiusm texture, perimeter, area, smoothness, compactness, concavity, concave points, symmetry, fractal dimension) computed for the cellnuclei.
+- The data breast-cancer.csv 33 columns. 
+  +  Covariate “ID” lables individual breast tissue images 
+  +  Covariate “Diagnonsis” indentifies if the image is coming from cancer tissue or benign cases. 
+  + mean, standard deviation and the largest values of the distributions of 10 features are computed for the cellnuclei for each case.
+- Have 569 row 
+  + There are 357 benign and 212 malignant cases. 
+  
 
 
 ### Multicollinearity Plot of the Dataset
@@ -83,7 +82,7 @@ p <- dim(mydata)[2]
 list <- c(3:(p - 1))
 namesX <- names(mydata)[-c(1,2,p)]
 # standardize
-dataX <- do.call(cbind, lapply(list, function(x) (mydata[,x] - mean(mydata[,x]))/sd(mydata[,x]))) 
+dataX <- do.call(cbind, lapply(list, function(x) (mydata[,x] - mean(mydata[,x]))/sd(mydata[,x])))
 # design matrix
 X <- data.frame(dataX) %>% 
   mutate(., intercept = 1)
@@ -416,11 +415,13 @@ add_footnote(c("Dataset: Breast Cancer Diagnosis"),
 notation = "alphabet")
 ```
 
-### Model Comparison-Coefficient
+### The comparison of performance for estimation
 ```{r}
 # output-beta
-kable(t(beta.res), "latex", caption = "The comparison of performance for estimation algorithms and models", booktabs = T) %>%
-kable_styling(latex_options = c("hold_position", "scale_down"), bootstrap_options = c("condensed")) %>%
+# caption = "The comparison of performance for estimation algorithms and models", 
+kable(t(beta.res), "latex", booktabs = T) %>%
+kable_styling(
+              bootstrap_options = c("condensed"),font_size = 5, full_width = F) %>%
 add_footnote(c("Dataset: Breast Cancer Diagnosis"),
 notation = "alphabet")
 ```
@@ -770,9 +771,9 @@ Table 2 & 3 provide the full results of smooth bootstrap estimation for logistic
 
 Based on that, we got 27 proteins that meets these two criterions (Table 4).
 
-### Significant Proteins
+### Significant Proteins with Bootstap time=5000
 
-```{r, echo=F}
+```{r }
 ## select beta based on number of chosen
 # colnames(out.df) <- c("min.lambda","subject.1","intercpt",colnames(dataX),
 #                    sprintf("b[%d]",seq(1:p)),sprintf("n[%d]",seq(1:n)))
@@ -804,22 +805,23 @@ covname = tmp %>%
          (lower.new > 0 | upper.new < 0)) %>% 
   select(V1) %>% 
   unlist()
-kable(est.result[covname,], "latex", caption = "Significant Proteins", booktabs = T) %>%
-  kable_styling(latex_options = c("hold_position", "scale_down"),
-                font_size = 6,full_width = F) %>%
-  add_footnote(c("Bootstap time=5000", "origin: estimation from PCD-LASSO", "prob: chosen probability from bootstrap", "doef: estimation from SBE", "sd: nonparamatric delta-method estimate of standard deviation", "lower, upper: quantile CI", "lower.new, upper.new: CI from nonparamatric delta-method estimate"),
+# caption = "Significant Proteins",
+kable(est.result[covname,], "latex",  booktabs = T) %>%
+  kable_styling(font_size = 3,full_width = F) %>%
+  add_footnote(c("origin: estimation from PCD-LASSO", "prob: chosen probability from bootstrap, coef: estimation from SBE", "sd: nonparamatric delta-method estimate of standard deviation", "lower, upper: quantile CI; lower.new, upper.new: CI from nonparamatric delta-method estimate"),
                notation = "alphabet")
+
 ```
 
-### Non-significant Proteins
+<!-- ### Non-significant Proteins -->
 
-```{r, echo=F}
-kable(est.result[setdiff(rownames(est.result), covname),], "latex", caption = "Non-significant Proteins", booktabs = T) %>%
-   kable_styling(latex_options = c("hold_position", "scale_down"),
-                 font_size = 6, full_width = F, bootstrap_options = c("condensed")) %>%
-   add_footnote(c("Bootstap time=5000", "origin: estimation from PCD-LASSO", "prob: chosen probability from bootstrap", "doef: estimation from SBE", "sd: nonparamatric delta-method estimate of standard deviation", "lower, upper: quantile CI", "lower.new, upper.new: CI from nonparamatric delta-method estimate"),
-                notation = "alphabet")
-```
+<!-- ```{r } -->
+<!-- kable(est.result[setdiff(rownames(est.result), covname),], "latex", caption = "Non-significant Proteins", booktabs = T) %>% -->
+<!--    kable_styling(latex_options = c("hold_position", "scale_down"), -->
+<!--                  font_size = 6, full_width = F, bootstrap_options = c("condensed")) %>% -->
+<!--    add_footnote(c("Bootstap time=5000", "origin: estimation from PCD-LASSO", "prob: chosen probability from bootstrap", "doef: estimation from SBE", "sd: nonparamatric delta-method estimate of standard deviation", "lower, upper: quantile CI", "lower.new, upper.new: CI from nonparamatric delta-method estimate"), -->
+<!--                 notation = "alphabet") -->
+<!-- ``` -->
 
 
 ## Conclusion
