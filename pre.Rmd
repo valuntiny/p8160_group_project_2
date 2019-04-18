@@ -69,10 +69,11 @@ theme_set(theme_bw())
   + There are 357 benign and 212 malignant cases. 
   
 
+### Multicollinearity of the Dataset
 
-### Multicollinearity Plot of the Dataset
-
-- **Variable Selection:** Reduce multicollinearity based on both correlation coefficient and eigenvalue of correlation matrix
+- **Variable Selection:** Reduce multicollinearity based on: 
+  + correlation coefficient $\leq 0.7$
+  + eigenvalue of correlation matrix $\geq 0.01$ 
 
 ```{r, echo=FALSE, fig.height=4}
 ###### data manipulation
@@ -114,7 +115,7 @@ ggarrange(g1,g2, ncol=2, nrow=1, common.legend = TRUE, legend = "bottom", labels
 ```
 
 ## Method
-### Logistic Model
+### Logistic Regression Model
 
 ```{r, echo=FALSE}
 ###### 0.logistic regression
@@ -215,62 +216,41 @@ coordinatelasso <- function(lambda, dat, s, tol=1e-10, maxiter = 200){
 logmod <- cv.glmnet(newdat$X[,-dim(newdat$X)[2]], y=newdat$y, alpha=1, family="binomial",type.measure="mse")
 ```
 
-**Logistic Regression:**
+- **Notations**
 
-$y$: the vector of $n$ response random variable
+  + $y$: the vector of $n$ response random variable
+  + $X$: the $n\times (p+1)$ design matrix ($X_{i}$ denote the $i$th row)
+  + $\beta$: the $(p+1)\times 1$ coefficient vector
 
-$X$: the $n\times p$ design matrix ($X_{i}$ denote the $i$th row)
-
-$\beta$: the $p\times 1$ coefficient
-
-- Object: maximize log-likelihood function
+- **Objective function**: maximize log-likelihood function
 $$
 \begin{aligned}
-max \sum_{i=1}^n \{y_i(X_{i}\beta)-\log(1+\exp(X_{i}\beta))\}
+\max_{\beta\in \mathbb{R}^{p+1}} \sum_{i=1}^n \{y_i(X_{i}\beta)-\log(1+\exp(X_{i}\beta))\}
 \end{aligned}
 $$
+- Gradient: $\nabla l(\beta) = X^T(y-p)$, Hessian: $\nabla^2 l(\beta) = -X^T W X$ where $p=\frac{\exp(X\beta)}{1+\exp(X\beta)}$, $W = diag(p_i(1-p_i)), i=1,\cdots,n$. The Hessian is negative definite.
 
+### Newton Raphson Algorithm 
 
-### Newton Raphson
-
-
-- The gradient:
-$$
-\nabla l(\beta) = X^T(y-p)
-$$
-where $p=\frac{\exp(X\beta)}{1+\exp(X\beta)}$
-
-- The Hessian:
-$$
-\nabla^2 l(\beta) = -X^T W X
-$$
-where $W = diag(p_i(1-p_i)), i=1,\cdots,n$. The Hessian is negative definite.
-
-
-### Newton Raphson
-
-*Update coefficients: step-halving*
+- *Newton Raphson with step-halving*
 $$
 \beta_{i+1}(\gamma) = \beta_{i} - \gamma[\nabla^2 l(\beta_{i})]^{-1}\nabla l(\beta_{i})
 $$
+- **Algorithm**
+   + initilize the estimates denoted as $\beta_0$
+   +  use the principle of newton raphson to update the estimate, the algorithm of optimizing the step size is
+      -  Set $\gamma = 1$
+      -  If $f(\theta_{i+1}(1)) \geq f(\theta_{i})$, then set $\theta_{i+1} = \theta_{i+1}(1)$
+      -  If $f(\theta_{i+1}(1)) \leq f(\theta_{i})$, search for a value $\gamma \in (0,1)$ for which $f(\theta_{i+1}(\gamma)) \geq f(\theta_{i})$, set $\theta_{i+1} = \theta_{i+1}(\gamma)$
+   + stop searching until the convergences of the estimates 
+- **Gradient Descent:** 
+  $$ \beta_{i+1} = \beta_{i} + H_{i}\nabla f(\beta_{i}) $$
+  
 
-- Set $\gamma = 1$
-- If $f(\theta_{i+1}(1)) \geq f(\theta_{i})$, then set $\theta_{i+1} = \theta_{i+1}(1)$
-- If $f(\theta_{i+1}(1)) \leq f(\theta_{i})$, search for a value $\gamma \in (0,1)$ for which $f(\theta_{i+1}(\gamma)) \geq f(\theta_{i})$, set $\theta_{i+1} = \theta_{i+1}(\gamma)$
+### LASSO with Pathwise Coordinate Descent
 
-*Gradient Descent:*
-
-$$
-\beta_{i+1} = \beta_{i} + H_{i}\nabla f(\beta_{i})
-$$
-where $H_{i} = (X^TX)^{-1}$ for every $i$.
-
-
-### Logistic-LASSO Model with Pathwise Coordinate Descent
-
-- Object: maximize the penalized log likelihood:
-$$\max_{\beta \in \mathbb{R}^{p+1}} \frac{1}{n}\sum_{i=1}^n  \{y_i(X_{i}\beta)-\log(1+\exp(X_{i}\beta))\}-\lambda \sum_{j=0}^p |\beta_j|$$
-for some $\lambda \geq 0$
+- **Objective function**: maximize the penalized log likelihood with some $\lambda \geq 0$:
+$$\min_{\beta \in \mathbb{R}^{p+1}} \{ \frac{1}{2n} \sum_{i=1}^{n}(z_{i} - \sum_{j=0}^{p}x_{i,j}\beta_{j})^{2} + \lambda P{(\beta)})\}$$
 
 - Coordinate-wise descent with weighted update:
 $$
@@ -278,12 +258,30 @@ $$
 $$
 where $\tilde{y_{i}}^{(-j)} = \sum_{k \neq j}x_{i,k}\tilde{\beta_{k}}$ and $S(\hat{\beta}, \lambda) = sign(\hat{\beta})(|\hat{\beta}| - \lambda)_{+}$
 
+### Logistic-LASSO Model
 
+- Object function: $$\max_{\beta \in \mathbb{R}^{p+1}} \frac{1}{n}\sum_{i=1}^n  \{y_i(X_{i}\beta)-\log(1+\exp(X_{i}\beta))\}-\lambda \sum_{j=0}^p |\beta_j|$$
+
+- Quardratic approximation to the negative log likelihood by taylor expansion 
+  $$ f(\beta) = -\frac{1}{2n}\sum_{i=1}^{n}w_i(z_{i} - \sum_{j=0}^{p}x_{i,j}\beta_{j})^{2} + C(\tilde{\beta}) $$
+  where 
+    \[
+    \begin{aligned}
+    & z_i = \tilde{\beta}_0+ x_i^T\tilde{\beta} + \frac{y_i-\tilde{p}(x_i)}{\tilde{p}(x_i)(1-\tilde{p}(x_i))}, \text{working response}\\
+    & w_i = \tilde{p}(x_i)(1-\tilde{p}(x_i)), \text{working weights}
+    \end{aligned}
+    \]
+    
+###  Logistic-LASSO Model with Pathwise Coordinate Descent Algorithm
+- **Algorithm**
+  + outer loop: start with $\lambda$ that all the coefficients are forced to be zerp, then decrement $\lambda$;
+  + middle loop: update the quardratic $f(\beta)$ using the current estimates of parameters;
+  + inner loop: run the coordinate descent algorithm on the penalized weighted least square problem.
 
 ## Result
 ###  Estimation Path and Cross Validation for LASSO
 
-```{r, echo=FALSE}
+```{r, echo=FALSE, fig.height=4}
 path <- function(inputx,inputy,grid){
   start <- rep(0, dim(inputx)[2])
   betas <- NULL
@@ -357,7 +355,7 @@ grid.arrange(path.plot,cv.plot,ncol=2)
 ```
 
 
-###  Model Comparison-Prediction Performance 
+###  Model Comparison: Prediction Performance 
 
 ```{r, echo=FALSE}
 ######## compare prediction performance of all results
@@ -415,7 +413,7 @@ add_footnote(c("Dataset: Breast Cancer Diagnosis"),
 notation = "alphabet")
 ```
 
-### The comparison of performance for estimation
+### Model Comparison: estimation
 ```{r}
 # output-beta
 # caption = "The comparison of performance for estimation algorithms and models", 
@@ -430,10 +428,11 @@ notation = "alphabet")
 ## Conclusion
 ### Conclusion and Discussion
 
-- The results of our methods are compared to the the same parameter estimation as R's built-in packages
-- Newton-Raphson has the convincing estimation and it converged quickly
-- Gradient decent method showed similar estimation as Newton-Raphson method but it was less efficient
-- For Pathwise Coordinate descent with LASSO logistic, according to the result of 5 fold cross validation and estimation result, the $\lambda$ with the lowest MSE and it shrunk six parameters to zero, which is comparable to the result by R's built-in packages. 
+- The results of our methods are consistent to the estimation from R's built-in packages
+  + Newton-Raphson has the convincing estimation and it converged quickly
+  + Gradient decent method showed similar estimation as Newton-Raphson method but it was less efficient
+  + For logistic lasso, according to the result of 5-fold cross validation and estimation result, the $\lambda$ with the lowest MSE and it shrunk six parameters to zero, which is comparable to the result by R's built-in packages. 
+- Prediction capability of logistic regression and penalized logistic regression are similar
 
 # Project: Bootstrap
 
@@ -447,17 +446,22 @@ mydata <- oridata%>%
   filter(complete.cases(.))
 ```
 
-The data Down.csv consists of the expression levels of 77 proteins/protein modifications that produced detectable signals in the nuclear fraction of cortex. It has 1080 rows and 79 columns. The first column MouseID identifies individual mice; The column 2-78 are values of expression levels of 77 proteins. Column 79 indicates whether the mouse is a control or has Down syndrome. The goal is to develop classification model based on the proteins expression levels.
+- The data Down.csv has 1080 rows and 79 columns
+   + MouseID identifies individual mice
+   + 2-78 are the expression levels of 77 proteins/protein modifications that produced detectable signals in the nuclear fraction of cortex. 
+   + Column 79 indicates whether the mouse is a control or has Down syndrome. 
+- The goal is to develop classification model based on the proteins expression levels.
 
-### Missingness
+### Missingness of the Dataset
 
-- **Variable Selection: ** Delete variables with high missing rate $(\geq 15\%)$
+- **Variable Selection: ** 
+   + Delete variables with high missing rate $(\geq 15\%)$
+   + For those covariates with missing rate < 15\%, we assumed them to be missing completely at random(MCAR)
+- Regularized method is applied due to the intrinsic correlation between individual proteins
 
-Also due to the intrinsic correlation between individual proteins, it's impossible to apply normal regression methods to this dataset because of sigularity propblem. Instead, we choose regularized methods, LASSO, to be more specific.
+### Missingness plot
 
-### Missingness
-
-```{r, dpi = 300, ehco=F}
+```{r, dpi = 300, ehco=F,fig.height=4}
 x <- apply(is.na(oridata[,2:78]), 2, sum) / nrow(oridata)
 tibble(name = names(x), percentage = as.numeric(x)) %>% 
   ggplot(aes(x = name, y = percentage)) + 
@@ -480,19 +484,15 @@ y <- as.vector(ifelse(mydata[,ncol] == "Down syndrome", 1, 0))
 dat <- list(y = y, X = as.matrix(X))
 ```
 
-## Methods
+## Method
 
-### Pathwise Coordinate Descent with Regularized Logistic Regression
+### Eestimation methods with Regularized Logistic Regression
 
-- Object: maximize the penalized log likelihood:
-$$\max_{\beta \in \mathbb{R}^{p+1}} \frac{1}{n}\sum_{i=1}^n  \{y_i(X_{i}\beta)-\log(1+\exp(X_{i}\beta))\}-\lambda \sum_{j=0}^p |\beta_j|$$
-for some $\lambda \geq 0$
+- Pathwise Coordinate Descent Algorithm based on the dataset
 
-- Coordinate-wise descent with weighted update:
-$$
-\tilde{\beta}^{lasso}_{j}(\lambda) \leftarrow \frac{S(\sum_{i=1}^{n}\omega_{i}x_{i,j}(y_{i} - \tilde{y_{i}}^{(-j)}), \lambda)}{\sum_{i=1}^n\omega_{i}x_{i,j}^{2}}
-$$
-where $\tilde{y_{i}}^{(-j)} = \sum_{k \neq j}x_{i,k}\tilde{\beta_{k}}$ and $S(\hat{\beta}, \lambda) = sign(\hat{\beta})(|\hat{\beta}| - \lambda)_{+}$
+- Smoothed Bootstrap
+  + All models are wrong
+  + Bagging: average the model estimators
 
 
 ### Smoothed Bootstrap Estimation and Inference
