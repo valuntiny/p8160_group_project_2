@@ -171,9 +171,9 @@ Point estimation:
 \]
 
 Inference: 
-And in addition to the percentile confidence interval, the nonparametric delta-method estimate of standard deviation for $s(y)$ in the nonideal case is:
+Define $Y_{ij}^* = \sum_{k=1}^n{y_{ik}=y_j}$ representing the number of times that $j^{th}$ data point apprears in the $\i^{th}$ bootstrap sample, thus the vector $Y_{i}^*$ follows a multinomial distribution with $n$ draws on $n$ catogories each of probability $\frac{1}{n}$ in ideal bootstrap. In addition to the percentile confidence interval, the nonparametric delta-method estimate of standard deviation for $s(y)$ in the nonideal case is:
 \[
-\tilde{sd}_B = [\sum_{i=1}^n\hat{cov}_j^2]^{1/2}
+\tilde{sd}_B = [\sum_{j=1}^n\hat{cov}_j^2]^{1/2}
 \]
 where 
 \[
@@ -296,7 +296,7 @@ lenb <- dim(temp)[1]
 co.fin.beta <- rbind(temp[lenb,],temp[1:(lenb-1),])
 ```
 
-<!-- The logistic lasso with pathwise coordinate Descent suggests that the penalty term to be `r best.lambda` by 5 fold cross validation based on the dataset. -->
+The logistic lasso with pathwise coordinate Descent suggests that the penalty term to be $`r best.lambda`$ by 5 fold cross validation based on the dataset.
 
 ```{r}
 # compare the result of our methods and glmnet
@@ -309,7 +309,7 @@ res.comp = res.comp %>%
 
 ### Model selection based on Smoothed Bootstrap Estimation for Logistic LASSO
 
-From Fig.4, we can see the discrepancy between results of Regularized Logistic Regression and Smoothed Bootstrap Estimation for Logistic LASSO both in prediction (Fig 4A) and finding the best $\lambda$ (Fig 4B), the results of Regularized Logistic Regression is deviated from the center of empirical distribution. The skewness of the distribution is caused by the non asymptotic normal property of Lasso estimator.
+From Fig.4, we can see the discrepancy between results of Regularized Logistic Regression and Smoothed Bootstrap Estimation for Logistic LASSO both in prediction (Fig 4A) and finding the best $\lambda$ (Fig 4B), the results of Regularized Logistic Regression are deviated from the center of empirical distribution. The skewness of the distribution is caused by the non asymptotic normal property of Lasso estimator.
 
 \textbf{Figure 4: Lambda selection based on Smoothed Bootstrap Estimation for Logistic LASSO}
 

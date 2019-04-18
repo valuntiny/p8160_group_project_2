@@ -232,7 +232,7 @@ $$
 
 ### Newton Raphson Algorithm 
 
-- *Newton Raphson with step-halving*
+- **Newton Raphson** with step-halving
 $$
 \beta_{i+1}(\gamma) = \beta_{i} - \gamma[\nabla^2 l(\beta_{i})]^{-1}\nabla l(\beta_{i})
 $$
@@ -243,7 +243,7 @@ $$
       -  If $f(\theta_{i+1}(1)) \geq f(\theta_{i})$, then set $\theta_{i+1} = \theta_{i+1}(1)$
       -  If $f(\theta_{i+1}(1)) \leq f(\theta_{i})$, search for a value $\gamma \in (0,1)$ for which $f(\theta_{i+1}(\gamma)) \geq f(\theta_{i})$, set $\theta_{i+1} = \theta_{i+1}(\gamma)$
    + stop searching until the convergences of the estimates 
-- **Gradient Descent:** 
+- **Gradient Descent** 
   $$ \beta_{i+1} = \beta_{i} + H_{i}\nabla f(\beta_{i}) $$
   
 
@@ -506,7 +506,7 @@ dat <- list(y = y, X = as.matrix(X))
 
 - **Inference**: the nonparametric delta-method estimate of se:
 \[
-\tilde{sd}_B = [\sum_{i=1}^n\hat{cov}_j^2]^{1/2}
+\tilde{sd}_B = [\sum_{j=1}^n\hat{cov}_j^2]^{1/2}
 \]
 where \[\hat{cov}_j = \sum_{i=1}^B(Y_{ij}^*-Y_{.j}^*)(t_i^*-t_.^*)/B\]
 with $Y_{.j}^* = \sum_{i=1}^BY_{ij}^*/B$ and $t_.^* = \sum_{i=1}^Bt_{i}^*/B=s(y)$.
@@ -705,9 +705,11 @@ grid.arrange(s1+
 
 ### Cross Validation for Model Prediction Comparison
 
-We used 10 fold cross-validation to compare two models: 
-- one is with $\lambda$ selected from data
-- the other is selected by smoothed bootstrap
+We used 10 fold **cross-validation** to compare two models
+
+  - one is with $\lambda$ selected from data
+  
+  - the other is selected by smoothed bootstrap
 
 ```{r, echo=FALSE}
 ################ cross validation for comparison of prediction error
@@ -748,7 +750,7 @@ add_footnote(c("Dataset: Proteins expression levels of Down syndrome"),
 notation = "alphabet")
 ```
 
-### Significant Proteins Selection by Smooth Bootstrap Estimation
+### Significant Proteins Selection by Smoothed Bootstrap Estimation
 
 Our identification criterions are: 
 
