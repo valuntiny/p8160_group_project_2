@@ -64,7 +64,7 @@ theme_set(theme_bw())
 - The data breast-cancer.csv 33 columns. 
   +  Covariate “ID” lables individual breast tissue images 
   +  Covariate “Diagnonsis” indentifies if the image is coming from cancer tissue or benign cases. 
-  + mean, standard deviation and the largest values of the distributions of 10 features are computed for the cellnuclei for each case.
+  +  Mean, standard deviation and the largest values of the distributions of 10 features are computed for the cellnuclei for each case.
 - Have 569 row 
   + There are 357 benign and 212 malignant cases. 
   
