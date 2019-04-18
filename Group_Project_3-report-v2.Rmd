@@ -296,7 +296,7 @@ lenb <- dim(temp)[1]
 co.fin.beta <- rbind(temp[lenb,],temp[1:(lenb-1),])
 ```
 
-The logistic lasso with pathwise coordinate Descent suggests that the penalty term to be $`r best.lambda`$ by 5 fold cross validation based on the dataset.
+The logistic lasso with pathwise coordinate Descent suggests that the penalty term to be `r exp(best.lambda)` by 5 fold cross validation based on the dataset.
 
 ```{r}
 # compare the result of our methods and glmnet

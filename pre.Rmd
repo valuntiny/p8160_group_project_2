@@ -504,7 +504,7 @@ dat <- list(y = y, X = as.matrix(X))
   + smooth $\hat{\mu} = t(y)$ by averaging over replications, defining
    \[ \tilde{\mu} = s(y) = \frac{1}{B}\sum_{i=1}^B t(y^*) \]
 
-- **Inference**: the nonparametric delta-method estimate of se:
+- **Inference**: the nonparametric delta-method estimate of sd:
 \[
 \tilde{sd}_B = [\sum_{j=1}^n\hat{cov}_j^2]^{1/2}
 \]
