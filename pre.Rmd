@@ -47,7 +47,7 @@ theme_set(theme_bw())
 ```
 
 # Introduction 
-### Introduction of today's presentation
+### Introduction of Today's Presentation
 
 - **Group project 2:** Optimization algorithms on a breast cancer diagnosis dataset
   + Build a predictive model based on logistic regression to faciliate cancer diagnosis
@@ -281,7 +281,7 @@ where $\tilde{y_{i}}^{(-j)} = \sum_{k \neq j}x_{i,k}\tilde{\beta_{k}}$ and $S(\h
 ## Result
 ###  Estimation Path and Cross Validation for LASSO
 
-```{r, echo=FALSE, fig.height=4}
+```{r, echo=FALSE, fig.height=5}
 path <- function(inputx,inputy,grid){
   start <- rep(0, dim(inputx)[2])
   betas <- NULL
@@ -413,7 +413,7 @@ add_footnote(c("Dataset: Breast Cancer Diagnosis"),
 notation = "alphabet")
 ```
 
-### Model Comparison: estimation
+### Model Comparison: Estimation
 ```{r}
 # output-beta
 # caption = "The comparison of performance for estimation algorithms and models", 
@@ -459,9 +459,9 @@ mydata <- oridata%>%
    + For those covariates with missing rate < 15\%, we assumed them to be missing completely at random(MCAR)
 - Regularized method is applied due to the intrinsic correlation between individual proteins
 
-### Missingness plot
+### Missingness Plot
 
-```{r, dpi = 300, ehco=F,fig.height=4}
+```{r, dpi = 300, ehco=F,fig.height=5}
 x <- apply(is.na(oridata[,2:78]), 2, sum) / nrow(oridata)
 tibble(name = names(x), percentage = as.numeric(x)) %>% 
   ggplot(aes(x = name, y = percentage)) + 
@@ -486,43 +486,36 @@ dat <- list(y = y, X = as.matrix(X))
 
 ## Method
 
-### Eestimation methods with Regularized Logistic Regression
+### Eestimation Methods with Regularized Logistic Regression
 
 - Pathwise Coordinate Descent Algorithm based on the dataset
 
 - Smoothed Bootstrap
-  + All models are wrong
-  + Bagging: average the model estimators
-
-
-### Smoothed Bootstrap Estimation and Inference
-
-- First we need to prepare a couple of candidate models 
-- for each bootstrap in bootstrap with B times, select the best model and get estimates for the coefficient denoted as $t(y^*)$
-- smooth $\hat{\mu} = t(y)$ by averaging over the bootstrap replications, defining
-\[
-\tilde{\mu} = s(y) = \frac{1}{B}\sum_{i=1}^B t(y^*)
-\]
+  + We define lasso logistic regression models with different $\lambda$s are considered different models. All models are wrong
+  + idea of **Bagging**: average the model estimators
+    - bootstrap data from the original dataset
+    - cross validation and select the best $\lambda_{i}^{\ast}$ for each repetition
+    - calculate average $\lambda^{\ast} = \frac{1}{B}\sum_{i=1}^B \lambda_i^{\ast}$
 
 ### Smoothed Bootstrap Estimation and Inference
 
-And in addition to the percentile confidence interval, the nonparametric delta-method estimate of standard deviation for $s(y)$ in the nonideal case is:
+- **Point estimation**
+  + for each bootstrap, get the best model and estimate $t(y^*)$
+  + smooth $\hat{\mu} = t(y)$ by averaging over replications, defining
+   \[ \tilde{\mu} = s(y) = \frac{1}{B}\sum_{i=1}^B t(y^*) \]
+
+- **Inference**: the nonparametric delta-method estimate of se:
 \[
 \tilde{sd}_B = [\sum_{i=1}^n\hat{cov}_j^2]^{1/2}
 \]
-where 
-\[
-\hat{cov}_j = \sum_{i=1}^B(Y_{ij}^*-Y_{.j}^*)(t_i^*-t_.^*)/B
-\]
+where \[\hat{cov}_j = \sum_{i=1}^B(Y_{ij}^*-Y_{.j}^*)(t_i^*-t_.^*)/B\]
 with $Y_{.j}^* = \sum_{i=1}^BY_{ij}^*/B$ and $t_.^* = \sum_{i=1}^Bt_{i}^*/B=s(y)$.
 
 ## Result
 
-### Pathwise Coordinate Descent Logistic-LASSO
+### Pathwise Coordinate Descent with Logistic-LASSO
 
-The left-hand side plot shows us that as the $\lambda$ increases, all the variable estimates of parameters shrink accordingly since we penalize all the parameters. When $\lambda = 0$, the result is the same as least square method and when $\lambda$ is too large, all the estimates of parameters shrink to 0. The right-hand side plot shows us the cross validation result for choosing the best $\lambda$. 
-
-```{r, dpi = 300, echo=F, fig.height=4}
+```{r, dpi = 300, echo=F, fig.height=5}
 ### regulized logistic regression: middle loop and inner loop
 sfun <- function(beta,lambda) sign(beta) * max(abs(beta)-lambda, 0)
 reglogitlasso <- function(lambda, dat, start, tol=1e-10, maxiter = 200,...){
@@ -633,19 +626,11 @@ res.comp <- cbind(co.fin.beta, as.matrix(coef.glmnet(logmod)))
 names(res.comp) = c("protein", "LASSO", "glmnet") # it's very similar
 ```
 
-### Model Selection Based on Smooth Bootstrap Estimation for Logistic-LASSO
+### Logistic-LASSO with Smooth Bootstrap
 
-algorithm:
+Discrepancy between results of LASSO with PCD and smoothed bootstrap estimation in both prediction and finding the best $\lambda$, the PCD is deviated from the center of empirical distribution.
 
-- bootstrap data from the original dataset
-- do cross validation and select the best $\lambda_{i}^{\ast}$ for each repetition
-- calculate average $\lambda^{\ast} = \frac{1}{B}\sum_{i=1}^B \lambda_i^{\ast}$
-
-We can see the discrepancy between results of PCD-LASSO and smooth bootstrap estimation for Logistic LASSO both in prediction and finding the best $\lambda$, the results of PCD-LASSO is deviated from the center of empirical distribution.
-
-### Lambda Selection Based on Smooth Bootstrap Estimation for Logistic LASSO
-
-```{r, dpi = 300, echo=F,fig.height=5}
+```{r, dpi = 300, echo=F,fig.height=4}
 ############ get the estimate and se by smmothing bootstrap
 n <- length(y)
 p <- dim(dataX)[2]+1
@@ -720,7 +705,9 @@ grid.arrange(s1+
 
 ### Cross Validation for Model Prediction Comparison
 
-We used 10 fold cross-validation to compare two different models, one is with $\lambda$ selected from data, the other is selected from the SBE. Table 1 shows us that while the Cross Validation MSE are similar between these two methods, smooth bootstrap estimation provides a more accurate classification result.
+We used 10 fold cross-validation to compare two models: 
+- one is with $\lambda$ selected from data
+- the other is selected by smoothed bootstrap
 
 ```{r, echo=FALSE}
 ################ cross validation for comparison of prediction error
@@ -761,17 +748,21 @@ add_footnote(c("Dataset: Proteins expression levels of Down syndrome"),
 notation = "alphabet")
 ```
 
-### Significant Random Variable Selection from Smooth Bootstrap Estimation
+### Significant Proteins Selection by Smooth Bootstrap Estimation
 
-Table 2 & 3 provide the full results of smooth bootstrap estimation for logistic LASSO. Our identification criterions here are: 
+Our identification criterions are: 
 
-1. the chosen probability greater than 96\%
+- selected probability: the probability of certain protein selected during the bootstrap
+  + the chosen probability greater than 96\%
 
-2. smooth bootstrap estimation confidence interval excludes zero. 
+- confidence interval:
+  + percentile confidence interval by using quantile function of the bootstrap empirical distribution
+  + smoothed confidence interval calculated as proposed $\tilde{\mu} \pm 1.96\cdot \tilde{sd}_B$
+  + both CI exclude zero
 
-Based on that, we got 27 proteins that meets these two criterions (Table 4).
+Based on that, we got 27 proteins that meets these two criterions.
 
-### Significant Proteins with Bootstap time=5000
+### Significant Proteins with Bootstap n=5000
 
 ```{r }
 ## select beta based on number of chosen
@@ -825,5 +816,20 @@ kable(est.result[covname,], "latex",  booktabs = T) %>%
 
 
 ## Conclusion
+### Conclusion and Discussion
+- We applied two methods to get estimates for Penalized Logistic Lasso Regression: Pathwise Coordinate Descent Estimation and Smoothed Bootstrap to select the best $\lambda$. 
+  + cross validation result showed similar accuracy in prediction. 
+  + classical statistical theory does ignore the model selection process in assessing estimation accuracy, which is consistant with the Efron paper results. 
+- We conducted inference based on Smoothed Bootstrap Estimation, and identified 27 proteins that are significantly associated with the Down syndrome.
 
-In this study, we first used cross validation to find the best $\lambda$ for PCD-LASSO prediction. Then we used bootstrap to plot empirical distribution of the best $\lambda$ for LASSO and the prediction of subject 1, which proved that classical statistical theory does ignore model selection in assessing estimation accuracy. The cross validation result of comparing PCD-LASSO best $\lambda$ and smooth bootstrap estimation best $\lambda$ also showed that smooth bootstrap estimation method provide a better result. Then based on the chosen probability and smooth bootstrap estimation CI, we identified a subset of proteins that are significantly associated with the Down syndrome.
+### Reference
+\begin{enumerate}
+\item[1] Friedman, Jerome, Trevor Hastie, and Rob Tibshirani. "Regularization paths for generalized linear models via coordinate descent." Journal of statistical software 33.1 (2010): 1.
+\item[2] Friedman, Jerome, et al. "Pathwise coordinate optimization." The annals of applied statistics 1.2 (2007): 302-332.
+\item[3] Efron, Bradley. "Estimation and accuracy after model selection." Journal of the American Statistical Association 109.507 (2014): 991-1007.
+\end{enumerate}
+
+### Thank you!
+
+Questions? 
+
