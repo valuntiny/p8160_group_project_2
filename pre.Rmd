@@ -491,7 +491,7 @@ dat <- list(y = y, X = as.matrix(X))
 - Pathwise Coordinate Descent Algorithm based on the dataset
 
 - Smoothed Bootstrap
-  + We define lasso logistic regression models with different $\lambda$s are considered different models. All models are wrong
+  + Lasso logistic regression models with different $\lambda$s are considered to be different models. All models are wrong
   + idea of **Bagging**: average the model estimators
     - bootstrap data from the original dataset
     - cross validation and select the best $\lambda_{i}^{\ast}$ for each repetition
