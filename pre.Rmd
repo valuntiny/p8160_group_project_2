@@ -249,7 +249,7 @@ $$
 
 ### LASSO with Pathwise Coordinate Descent
 
-- **Objective function**: maximize the penalized log likelihood with some $\lambda \geq 0$:
+- **Objective function**: minimize the penalized cost function with some $\lambda \geq 0$:
 $$\min_{\beta \in \mathbb{R}^{p+1}} \{ \frac{1}{2n} \sum_{i=1}^{n}(z_{i} - \sum_{j=0}^{p}x_{i,j}\beta_{j})^{2} + \lambda P{(\beta)})\}$$
 
 - Coordinate-wise descent with weighted update:
